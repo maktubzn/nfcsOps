@@ -1,0 +1,395 @@
+{
+  "schema_version": 1,
+  "created": "2026-09-20",
+  "sdk": {
+    "flutter": "3.47.2",
+    "dart": "3.13.2"
+  },
+  "max_attempts": 3,
+  "visual_dimensions": [
+    "geometry",
+    "typography",
+    "colors",
+    "assets",
+    "content"
+  ],
+  "min_visual_score": 98,
+  "units": [
+    {
+      "id": "00-FUNDACAO",
+      "title": "Fundação e contratos",
+      "group": "00",
+      "reference": null,
+      "prompt": "harness/prompts/00-FUNDACAO.md",
+      "criteria": [
+        "preflight",
+        "architecture",
+        "fixtures",
+        "backend_contract",
+        "auth_plan",
+        "visual_calibration"
+      ]
+    },
+    {
+      "id": "S01",
+      "title": "Login",
+      "group": "01",
+      "reference": "design/01-acesso-e-empresas.png",
+      "prompt": "harness/prompts/S01.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S02",
+      "title": "Dashboard",
+      "group": "01",
+      "reference": "design/01-acesso-e-empresas.png",
+      "prompt": "harness/prompts/S02.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S03",
+      "title": "Empresas",
+      "group": "01",
+      "reference": "design/01-acesso-e-empresas.png",
+      "prompt": "harness/prompts/S03.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S04",
+      "title": "Nova empresa",
+      "group": "01",
+      "reference": "design/01-acesso-e-empresas.png",
+      "prompt": "harness/prompts/S04.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S05",
+      "title": "Detalhe da empresa",
+      "group": "02",
+      "reference": "design/02-empresa-e-servicos.png",
+      "prompt": "harness/prompts/S05.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S06",
+      "title": "Editar empresa",
+      "group": "02",
+      "reference": "design/02-empresa-e-servicos.png",
+      "prompt": "harness/prompts/S06.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S07",
+      "title": "Detalhe do serviço",
+      "group": "02",
+      "reference": "design/02-empresa-e-servicos.png",
+      "prompt": "harness/prompts/S07.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S08",
+      "title": "Editar serviço",
+      "group": "02",
+      "reference": "design/02-empresa-e-servicos.png",
+      "prompt": "harness/prompts/S08.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S09",
+      "title": "QR Code",
+      "group": "03",
+      "reference": "design/03-qr-saude-e-estoque.png",
+      "prompt": "harness/prompts/S09.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S10",
+      "title": "Central de saúde",
+      "group": "03",
+      "reference": "design/03-qr-saude-e-estoque.png",
+      "prompt": "harness/prompts/S10.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S11",
+      "title": "Estoque",
+      "group": "03",
+      "reference": "design/03-qr-saude-e-estoque.png",
+      "prompt": "harness/prompts/S11.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S12",
+      "title": "Dispositivo",
+      "group": "03",
+      "reference": "design/03-qr-saude-e-estoque.png",
+      "prompt": "harness/prompts/S12.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S13",
+      "title": "Pedidos",
+      "group": "04",
+      "reference": "design/04-pedidos-e-gestao.png",
+      "prompt": "harness/prompts/S13.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S14",
+      "title": "Detalhe do pedido",
+      "group": "04",
+      "reference": "design/04-pedidos-e-gestao.png",
+      "prompt": "harness/prompts/S14.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S15",
+      "title": "Atividades",
+      "group": "04",
+      "reference": "design/04-pedidos-e-gestao.png",
+      "prompt": "harness/prompts/S15.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "S16",
+      "title": "Configurações",
+      "group": "04",
+      "reference": "design/04-pedidos-e-gestao.png",
+      "prompt": "harness/prompts/S16.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "A01",
+      "title": "Ações rápidas",
+      "group": "05",
+      "reference": "design/05-fluxos-complementares.png",
+      "prompt": "harness/prompts/A01.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "A02",
+      "title": "Novo serviço",
+      "group": "05",
+      "reference": "design/05-fluxos-complementares.png",
+      "prompt": "harness/prompts/A02.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "A03",
+      "title": "Novo pedido",
+      "group": "05",
+      "reference": "design/05-fluxos-complementares.png",
+      "prompt": "harness/prompts/A03.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "A04",
+      "title": "Checklist físico",
+      "group": "05",
+      "reference": "design/05-fluxos-complementares.png",
+      "prompt": "harness/prompts/A04.md",
+      "criteria": [
+        "visual_fidelity",
+        "all_actions",
+        "states",
+        "persistence",
+        "authorization",
+        "accessibility",
+        "tests",
+        "independent_review"
+      ]
+    },
+    {
+      "id": "99-INTEGRACAO",
+      "title": "Regressão completa e entrega",
+      "group": "99",
+      "reference": null,
+      "prompt": "harness/prompts/99-INTEGRACAO.md",
+      "criteria": [
+        "all_twenty_screens",
+        "all_controls",
+        "firebase_named_db",
+        "real_auth",
+        "security_rules",
+        "health_backend",
+        "physical_test_boundary",
+        "web_build",
+        "android_build",
+        "regression",
+        "no_known_failures",
+        "handoff"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+# Worker Clean Base Task Context
+- Role: Worker (Seed Decoupling, Clean Base Operation, Empty States & Test Stability)
+- Inputs:
+  - c:\Projetos\estudos\flutter\nfcsOps\ORIGINAL_REQUEST.md
+  - c:\Projetos\estudos\flutter\nfcsOps\AGENTS.md
+  - c:\Projetos\estudos\flutter\nfcsOps\.agents\teamwork_preview_explorer_survey_seed_1\seed_analysis.md
+  - c:\Projetos\estudos\flutter\nfcsOps\.agents\orchestrator_1\AUDIT_REPORT.md
+- Outputs:
+  - Code changes in lib/ and test/
+  - AUDIT_REPORT.md copied to project root
+  - Passing `dart analyze lib test` and `flutter test`
+  - handoff.md in working directory
