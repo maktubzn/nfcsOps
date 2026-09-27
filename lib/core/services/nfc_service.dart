@@ -156,51 +156,53 @@ class NfcService {
             final record = createUriRecord(url);
             final message = NdefMessage(records: [record]);
 
-            // 1. Android: NDEF já formatado
-            final ndefAndroid = NdefAndroid.from(tag);
-            if (ndefAndroid != null) {
-              if (!ndefAndroid.isWritable) {
-                onError?.call('Esta tag NFC está protegida contra gravação (somente leitura).');
+            if (defaultTargetPlatform == TargetPlatform.android) {
+              // 1. Android: NDEF já formatado
+              final ndefAndroid = NdefAndroid.from(tag);
+              if (ndefAndroid != null) {
+                if (!ndefAndroid.isWritable) {
+                  onError?.call('Esta tag NFC está protegida contra gravação (somente leitura).');
+                  await stopSession();
+                  return;
+                }
+                if (ndefAndroid.maxSize < message.byteLength) {
+                  onError?.call('A URL excede a capacidade de memória do chip (${ndefAndroid.maxSize} bytes).');
+                  await stopSession();
+                  return;
+                }
+                await ndefAndroid.writeNdefMessage(message);
                 await stopSession();
+                onSuccess();
                 return;
               }
-              if (ndefAndroid.maxSize < message.byteLength) {
-                onError?.call('A URL excede a capacidade de memória do chip (${ndefAndroid.maxSize} bytes).');
-                await stopSession();
-                return;
-              }
-              await ndefAndroid.writeNdefMessage(message);
-              await stopSession();
-              onSuccess();
-              return;
-            }
 
-            // 2. Android: Tag virgem / não formatada (NDEF Formatable)
-            final formatableAndroid = NdefFormatableAndroid.from(tag);
-            if (formatableAndroid != null) {
-              await formatableAndroid.format(message);
-              await stopSession();
-              onSuccess();
-              return;
-            }
-
-            // 3. iOS NDEF
-            final ndefIos = NdefIos.from(tag);
-            if (ndefIos != null) {
-              if (ndefIos.status != NdefStatusIos.readWrite) {
-                onError?.call('Esta tag NFC está bloqueada para gravação.');
+              // 2. Android: Tag virgem / não formatada (NDEF Formatable)
+              final formatableAndroid = NdefFormatableAndroid.from(tag);
+              if (formatableAndroid != null) {
+                await formatableAndroid.format(message);
                 await stopSession();
+                onSuccess();
                 return;
               }
-              if (ndefIos.capacity < message.byteLength) {
-                onError?.call('A URL excede a capacidade de memória do chip (${ndefIos.capacity} bytes).');
+            } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+              // 3. iOS NDEF
+              final ndefIos = NdefIos.from(tag);
+              if (ndefIos != null) {
+                if (ndefIos.status != NdefStatusIos.readWrite) {
+                  onError?.call('Esta tag NFC está bloqueada para gravação.');
+                  await stopSession();
+                  return;
+                }
+                if (ndefIos.capacity < message.byteLength) {
+                  onError?.call('A URL excede a capacidade de memória do chip (${ndefIos.capacity} bytes).');
+                  await stopSession();
+                  return;
+                }
+                await ndefIos.writeNdef(message);
                 await stopSession();
+                onSuccess();
                 return;
               }
-              await ndefIos.writeNdef(message);
-              await stopSession();
-              onSuccess();
-              return;
             }
 
             onError?.call('Esta tag NFC não é compatível com escrita NDEF.');
@@ -239,55 +241,65 @@ class NfcService {
     bool isWritable = true;
     int? maxCapacity;
 
-    // 1. Android Tag
-    final androidTag = NfcTagAndroid.from(tag);
-    if (androidTag != null && androidTag.id.isNotEmpty) {
-      rawUid = formatIdentifier(androidTag.id);
-      tagType = androidTag.techList.isNotEmpty ? androidTag.techList.first.split('.').last : 'AndroidTag';
-    }
+    // 1. Android Tag (apenas no Android ou ambiente de teste)
+    if (defaultTargetPlatform == TargetPlatform.android) {
+      try {
+        final androidTag = NfcTagAndroid.from(tag);
+        if (androidTag != null && androidTag.id.isNotEmpty) {
+          rawUid = formatIdentifier(androidTag.id);
+          tagType = androidTag.techList.isNotEmpty ? androidTag.techList.first.split('.').last : 'AndroidTag';
+        }
 
-    final ndefAndroid = NdefAndroid.from(tag);
-    if (ndefAndroid != null) {
-      isWritable = ndefAndroid.isWritable;
-      maxCapacity = ndefAndroid.maxSize;
-      final cached = ndefAndroid.cachedNdefMessage;
-      if (cached != null && cached.records.isNotEmpty) {
-        for (final r in cached.records) {
-          final url = parseNdefRecord(r);
-          if (url != null && url.isNotEmpty) {
-            foundUrl = url;
-            break;
+        final ndefAndroid = NdefAndroid.from(tag);
+        if (ndefAndroid != null) {
+          isWritable = ndefAndroid.isWritable;
+          maxCapacity = ndefAndroid.maxSize;
+          final cached = ndefAndroid.cachedNdefMessage;
+          if (cached != null && cached.records.isNotEmpty) {
+            for (final r in cached.records) {
+              final url = parseNdefRecord(r);
+              if (url != null && url.isNotEmpty) {
+                foundUrl = url;
+                break;
+              }
+            }
           }
         }
+      } catch (e) {
+        debugPrint('[NfcService] Erro ao interpretar tag Android: $e');
       }
-    }
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+      // 2. iOS Tag (apenas no iOS para evitar colisão de Pigeon com Android)
+      try {
+        final mifare = MiFareIos.from(tag);
+        if (mifare != null && mifare.identifier.isNotEmpty) {
+          rawUid = formatIdentifier(mifare.identifier);
+          tagType = 'MifareIOS';
+        }
 
-    // 2. iOS Tag
-    final mifare = MiFareIos.from(tag);
-    if (rawUid == null && mifare != null && mifare.identifier.isNotEmpty) {
-      rawUid = formatIdentifier(mifare.identifier);
-      tagType = 'MifareIOS';
-    }
+        final iso7816 = Iso7816Ios.from(tag);
+        if (rawUid == null && iso7816 != null && iso7816.identifier.isNotEmpty) {
+          rawUid = formatIdentifier(iso7816.identifier);
+          tagType = 'Iso7816IOS';
+        }
 
-    final iso7816 = Iso7816Ios.from(tag);
-    if (rawUid == null && iso7816 != null && iso7816.identifier.isNotEmpty) {
-      rawUid = formatIdentifier(iso7816.identifier);
-      tagType = 'Iso7816IOS';
-    }
-
-    final ndefIos = NdefIos.from(tag);
-    if (ndefIos != null) {
-      isWritable = ndefIos.status == NdefStatusIos.readWrite;
-      maxCapacity = ndefIos.capacity;
-      final cached = ndefIos.cachedNdefMessage;
-      if (cached != null && cached.records.isNotEmpty) {
-        for (final r in cached.records) {
-          final url = parseNdefRecord(r);
-          if (url != null && url.isNotEmpty) {
-            foundUrl = url;
-            break;
+        final ndefIos = NdefIos.from(tag);
+        if (ndefIos != null) {
+          isWritable = ndefIos.status == NdefStatusIos.readWrite;
+          maxCapacity = ndefIos.capacity;
+          final cached = ndefIos.cachedNdefMessage;
+          if (cached != null && cached.records.isNotEmpty) {
+            for (final r in cached.records) {
+              final url = parseNdefRecord(r);
+              if (url != null && url.isNotEmpty) {
+                foundUrl = url;
+                break;
+              }
+            }
           }
         }
+      } catch (e) {
+        debugPrint('[NfcService] Erro ao interpretar tag iOS: $e');
       }
     }
 
