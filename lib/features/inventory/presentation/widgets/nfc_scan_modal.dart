@@ -51,7 +51,8 @@ class NfcScanModal extends ConsumerStatefulWidget {
   ConsumerState<NfcScanModal> createState() => _NfcScanModalState();
 }
 
-class _NfcScanModalState extends ConsumerState<NfcScanModal> with SingleTickerProviderStateMixin {
+class _NfcScanModalState extends ConsumerState<NfcScanModal>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _pulseController;
   late final Animation<double> _pulseAnimation;
 
@@ -60,10 +61,12 @@ class _NfcScanModalState extends ConsumerState<NfcScanModal> with SingleTickerPr
   String? _detectedUid;
   final TextEditingController _simulatedUidCtrl = TextEditingController(text: '04:A2:3B:5C:89:1F');
   bool _showSimulator = false;
+  bool _isNfcDisabled = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -77,7 +80,17 @@ class _NfcScanModalState extends ConsumerState<NfcScanModal> with SingleTickerPr
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      NfcService.instance.stopSession();
+    } else if (state == AppLifecycleState.resumed && _state == NfcScanState.scanning && mounted) {
+      _startNfcSession();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pulseController.dispose();
     _simulatedUidCtrl.dispose();
     NfcService.instance.stopSession();
@@ -85,13 +98,24 @@ class _NfcScanModalState extends ConsumerState<NfcScanModal> with SingleTickerPr
   }
 
   Future<void> _startNfcSession() async {
+    if (!mounted) return;
     setState(() {
       _state = NfcScanState.scanning;
+      _isNfcDisabled = false;
       _statusMessage = 'Aproxime o cartão ou placa NFC da traseira do aparelho.';
     });
 
-    final isAvailable = await NfcService.instance.isAvailable();
-    if (!isAvailable) {
+    final status = await NfcService.instance.checkHardwareStatus();
+    if (status == NfcHardwareStatus.disabled) {
+      if (mounted) {
+        setState(() {
+          _isNfcDisabled = true;
+          _showSimulator = true;
+          _statusMessage = 'O sensor NFC está desativado nas configurações do celular. Ative o NFC para ler placas físicas.';
+        });
+      }
+      return;
+    } else if (status == NfcHardwareStatus.unsupported) {
       if (mounted) {
         setState(() {
           _showSimulator = true;
@@ -102,7 +126,11 @@ class _NfcScanModalState extends ConsumerState<NfcScanModal> with SingleTickerPr
     }
 
     await NfcService.instance.startReadingSession(
-      onDiscovered: (result) => _handleTagDiscovered(result.uid, result.ndefUrl),
+      onDiscovered: (result) {
+        if (mounted) {
+          _handleTagDiscovered(result.uid, result.ndefUrl);
+        }
+      },
       onError: (err) {
         if (mounted) {
           setState(() {
@@ -256,6 +284,23 @@ class _NfcScanModalState extends ConsumerState<NfcScanModal> with SingleTickerPr
               height: 1.4,
             ),
           ),
+
+          if (_isNfcDisabled) ...[
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: _startNfcSession,
+              icon: const Icon(Icons.refresh, size: 16, color: AppColors.orangeAction),
+              label: const Text(
+                'Já ativei o NFC, verificar novamente',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.orangeAction,
+                ),
+              ),
+            ),
+          ],
 
           const SizedBox(height: 28),
 

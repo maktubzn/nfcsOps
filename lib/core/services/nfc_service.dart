@@ -26,6 +26,18 @@ class NfcScanResult {
   String toString() => 'NfcScanResult(uid: $uid, url: $ndefUrl, type: $tagType)';
 }
 
+/// Status detalhado de suporte e disponibilidade do hardware NFC.
+enum NfcHardwareStatus {
+  /// Hardware NFC suportado e ativado no sistema
+  ready,
+
+  /// Hardware NFC presente no aparelho, mas desativado nas configurações do sistema
+  disabled,
+
+  /// Aparelho não possui hardware NFC ou ambiente não suportado (ex: Web/Emulador sem sensor)
+  unsupported,
+}
+
 /// Serviço central de leitura e gravação NFC nativa (sem depender de apps externos).
 class NfcService {
   static final NfcService instance = NfcService._();
@@ -34,15 +46,25 @@ class NfcService {
   bool _isSessionActive = false;
   bool get isSessionActive => _isSessionActive;
 
+  /// Diagnóstico detalhado do hardware e status do NFC no aparelho.
+  Future<NfcHardwareStatus> checkHardwareStatus() async {
+    try {
+      if (kIsWeb) return NfcHardwareStatus.unsupported;
+      final availability = await NfcManager.instance.checkAvailability();
+      return switch (availability) {
+        NfcAvailability.enabled => NfcHardwareStatus.ready,
+        NfcAvailability.disabled => NfcHardwareStatus.disabled,
+        NfcAvailability.unsupported => NfcHardwareStatus.unsupported,
+      };
+    } catch (_) {
+      return NfcHardwareStatus.unsupported;
+    }
+  }
+
   /// Verifica se o dispositivo possui hardware NFC e se está habilitado.
   Future<bool> isAvailable() async {
-    try {
-      if (kIsWeb) return false;
-      final availability = await NfcManager.instance.checkAvailability();
-      return availability == NfcAvailability.enabled;
-    } catch (_) {
-      return false;
-    }
+    final status = await checkHardwareStatus();
+    return status == NfcHardwareStatus.ready;
   }
 
   /// Inicia sessão de leitura de tags NFC.
@@ -56,9 +78,13 @@ class NfcService {
     }
 
     try {
-      final available = await isAvailable();
-      if (!available) {
-        onError?.call('Hardware NFC não disponível ou desativado no aparelho.');
+      final status = await checkHardwareStatus();
+      if (status == NfcHardwareStatus.unsupported) {
+        onError?.call('Hardware NFC não disponível neste aparelho.');
+        return;
+      }
+      if (status == NfcHardwareStatus.disabled) {
+        onError?.call('O sensor NFC está desativado. Ative o NFC nas configurações do seu celular.');
         return;
       }
 
@@ -70,6 +96,10 @@ class NfcService {
           NfcPollingOption.iso14443,
           NfcPollingOption.iso15693,
           NfcPollingOption.iso18092,
+        },
+        onSessionErrorIos: (error) {
+          _isSessionActive = false;
+          onError?.call('Sessão NFC cancelada: ${error.message}');
         },
         onDiscovered: (NfcTag tag) async {
           try {
@@ -98,9 +128,13 @@ class NfcService {
     }
 
     try {
-      final available = await isAvailable();
-      if (!available) {
-        onError?.call('Hardware NFC não disponível ou desativado.');
+      final status = await checkHardwareStatus();
+      if (status == NfcHardwareStatus.unsupported) {
+        onError?.call('Hardware NFC não disponível neste aparelho.');
+        return;
+      }
+      if (status == NfcHardwareStatus.disabled) {
+        onError?.call('O sensor NFC está desativado. Ative o NFC nas configurações do seu celular.');
         return;
       }
 
@@ -113,15 +147,20 @@ class NfcService {
           NfcPollingOption.iso15693,
           NfcPollingOption.iso18092,
         },
+        onSessionErrorIos: (error) {
+          _isSessionActive = false;
+          onError?.call('Sessão de gravação NFC cancelada: ${error.message}');
+        },
         onDiscovered: (NfcTag tag) async {
           try {
             final record = createUriRecord(url);
             final message = NdefMessage(records: [record]);
 
+            // 1. Android: NDEF já formatado
             final ndefAndroid = NdefAndroid.from(tag);
             if (ndefAndroid != null) {
               if (!ndefAndroid.isWritable) {
-                onError?.call('Esta tag NFC está bloqueada para gravação.');
+                onError?.call('Esta tag NFC está protegida contra gravação (somente leitura).');
                 await stopSession();
                 return;
               }
@@ -136,6 +175,16 @@ class NfcService {
               return;
             }
 
+            // 2. Android: Tag virgem / não formatada (NDEF Formatable)
+            final formatableAndroid = NdefFormatableAndroid.from(tag);
+            if (formatableAndroid != null) {
+              await formatableAndroid.format(message);
+              await stopSession();
+              onSuccess();
+              return;
+            }
+
+            // 3. iOS NDEF
             final ndefIos = NdefIos.from(tag);
             if (ndefIos != null) {
               if (ndefIos.status != NdefStatusIos.readWrite) {
@@ -158,7 +207,12 @@ class NfcService {
             await stopSession();
           } catch (e) {
             await stopSession();
-            onError?.call('Erro ao gravar chip NFC: $e');
+            final errStr = e.toString().toLowerCase();
+            if (errStr.contains('taglost') || errStr.contains('ioexception') || errStr.contains('connection lost')) {
+              onError?.call('A placa foi afastada antes da conclusão da gravação. Mantenha a placa firme encostada na traseira do celular.');
+            } else {
+              onError?.call('Erro ao gravar chip NFC: $e');
+            }
           }
         },
       );
@@ -168,14 +222,13 @@ class NfcService {
     }
   }
 
-  /// Encerra qualquer sessão ativa de NFC.
+  /// Encerra qualquer sessão ativa de NFC de forma segura.
   Future<void> stopSession() async {
-    if (_isSessionActive) {
-      try {
-        await NfcManager.instance.stopSession();
-      } catch (_) {}
-      _isSessionActive = false;
-    }
+    if (!_isSessionActive) return;
+    _isSessionActive = false;
+    try {
+      await NfcManager.instance.stopSession();
+    } catch (_) {}
   }
 
   /// Extrai o UID canônico e registros NDEF de um objeto NfcTag.

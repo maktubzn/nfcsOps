@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/config/firebase_bootstrap.dart';
@@ -7,6 +8,18 @@ import 'core/theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Proteção global contra falhas não tratadas que derrubam o processo no Android
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('[NfcOps FlutterError] ${details.exceptionAsString()}');
+  };
+
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    debugPrint('[NfcOps PlatformDispatcher Error] $error\n$stack');
+    return true; // Retornar true indica que o erro foi interceptado e não deve derrubar o app
+  };
+
   String? initError;
 
   try {

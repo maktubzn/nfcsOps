@@ -728,13 +728,22 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
                                 }
                               }
 
-                              final available = await NfcService.instance.isAvailable();
-                              if (!available) {
+                              final statusCheck = await NfcService.instance.checkHardwareStatus();
+                              if (statusCheck == NfcHardwareStatus.disabled) {
                                 if (modalCtx.mounted) {
                                   setModalState(() {
                                     isWriting = false;
-                                    error = 'Hardware NFC não disponível ou desativado neste aparelho.';
-                                    status = 'Erro: Ative o sensor NFC nas configurações do aparelho.';
+                                    error = 'O sensor NFC está desativado nas configurações do aparelho.';
+                                    status = 'Ative o NFC nas configurações do celular para gravar a placa.';
+                                  });
+                                }
+                                return;
+                              } else if (statusCheck == NfcHardwareStatus.unsupported) {
+                                if (modalCtx.mounted) {
+                                  setModalState(() {
+                                    isWriting = false;
+                                    error = 'Este aparelho não possui hardware NFC físico.';
+                                    status = 'Operação não suportada sem sensor NFC.';
                                   });
                                 }
                                 return;
