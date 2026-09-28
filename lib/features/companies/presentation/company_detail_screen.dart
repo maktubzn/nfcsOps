@@ -401,6 +401,41 @@ class _CompanyDetailScreenState extends ConsumerState<CompanyDetailScreen> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 8),
+
+                      // Botão "Criar placa com QR"
+                      Material(
+                        color: const Color(0xFF1E201D),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(22),
+                          side: const BorderSide(color: Color(0xFF38BDF8), width: 1),
+                        ),
+                        child: InkWell(
+                          onTap: () => context.push('/designs/generate?companyId=${company.id}'),
+                          borderRadius: BorderRadius.circular(22),
+                          child: Container(
+                            height: 43,
+                            width: double.infinity,
+                            alignment: Alignment.center,
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(LucideIcons.printer, color: Color(0xFF38BDF8), size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Criar placa com QR',
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 16),
                     ] else if (_selectedTabIndex == 0) ...[
                       // Aba Visão Geral
@@ -960,14 +995,20 @@ class _CompanyDetailScreenState extends ConsumerState<CompanyDetailScreen> {
             _buildInfoRow('Endereço', company.notes!.trim()),
           _buildInfoRow('Cidade / UF', _formatCityUf(company)),
           _buildInfoRow('E-mail', company.email ?? 'Não informado'),
-          _buildInfoRow('Telefone', company.phone ?? 'Não informado'),
+          _buildInfoRow(
+            'Telefone',
+            company.phone ?? 'Não informado',
+            onTap: (company.phone != null && company.phone!.trim().isNotEmpty)
+                ? () => UrlLauncherService.makePhoneCallWithFeedback(context, company.phone!)
+                : null,
+          ),
           _buildInfoRow('Status', company.status.toUpperCase()),
         ],
       ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value, {VoidCallback? onTap}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -985,13 +1026,17 @@ class _CompanyDetailScreenState extends ConsumerState<CompanyDetailScreen> {
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontFamily: 'Inter',
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
+            child: InkWell(
+              onTap: onTap,
+              child: Text(
+                value,
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: onTap != null ? const Color(0xFFA5ADEB) : Colors.white,
+                  decoration: onTap != null ? TextDecoration.underline : null,
+                ),
               ),
             ),
           ),

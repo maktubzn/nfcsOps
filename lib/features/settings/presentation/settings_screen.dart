@@ -295,8 +295,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) {
+        final currentUser = ref.read(currentUserProvider);
         final users = [
           {'name': 'Gustavo Alves', 'email': 'gustwwavomitopai@gmail.com', 'role': 'Administrador Geral', 'active': true},
+          if (currentUser != null && currentUser.email.isNotEmpty && currentUser.email != 'gustwwavomitopai@gmail.com')
+            {
+              'name': currentUser.displayName.isNotEmpty ? currentUser.displayName : 'Gustavo Alves',
+              'email': currentUser.email,
+              'role': 'Administrador Geral',
+              'active': true,
+            },
           {'name': 'Operador Técnico', 'email': 'operador@nfcops.com', 'role': 'Operador de Campo', 'active': true},
           {'name': 'Suporte Produção', 'email': 'producao@nfcops.com', 'role': 'Técnico de Produção', 'active': true},
         ];

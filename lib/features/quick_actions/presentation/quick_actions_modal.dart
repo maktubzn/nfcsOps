@@ -142,6 +142,38 @@ class QuickActionsModal extends StatelessWidget {
                 context.push('/inventory/new');
               },
             ),
+
+            const SizedBox(height: 12),
+
+            // Opção 5: Criar Placa para Empresa
+            _buildActionTile(
+              context: context,
+              icon: LucideIcons.printer,
+              title: 'Criar placa com QR',
+              subtitle: 'Gerar arte personalizada para uma empresa',
+              iconColor: const Color(0xFF38BDF8),
+              iconBgColor: const Color(0xFF38BDF8).withValues(alpha: 0.15),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/designs/generate');
+              },
+            ),
+
+            const SizedBox(height: 12),
+
+            // Opção 6: Novo Modelo de Placa
+            _buildActionTile(
+              context: context,
+              icon: LucideIcons.layoutTemplate,
+              title: 'Novo modelo de placa',
+              subtitle: 'Upload de arte e posicionamento de QR Code',
+              iconColor: const Color(0xFFF472B6),
+              iconBgColor: const Color(0xFFF472B6).withValues(alpha: 0.15),
+              onTap: () {
+                Navigator.of(context).pop();
+                context.push('/templates/new');
+              },
+            ),
           ],
         ),
       ),

@@ -52,4 +52,5 @@ config/*.local.json
 harness/evidence/
 harness/state.json
 **/__pycache__/
+scratch/
 

@@ -9,6 +9,12 @@ import '../models/device_item.dart';
 import '../models/order_item.dart';
 import '../models/service_item.dart';
 import '../models/user_profile.dart';
+import '../models/plate_template.dart';
+import '../models/dynamic_qr_code.dart';
+import '../models/generated_design.dart';
+import 'template_repository.dart';
+import 'qr_code_repository.dart';
+import 'generated_design_repository.dart';
 import 'activity_repository.dart';
 import 'auth_repository.dart';
 import 'company_repository.dart';
@@ -17,6 +23,19 @@ import 'order_repository.dart';
 import 'service_repository.dart';
 
 import 'package:google_sign_in/google_sign_in.dart';
+
+/// Helper que intercepta erros assíncronos no stream do Firestore (como permission-denied),
+/// registrando o erro no console de debug e emitindo uma lista vazia para proteger a árvore de widgets.
+Stream<List<T>> _safeStream<T>(Stream<List<T>> stream) async* {
+  try {
+    await for (final items in stream) {
+      yield items;
+    }
+  } catch (error) {
+    debugPrint('[Firestore Stream Resilient Handler] Erro capturado com segurança: $error');
+    yield <T>[];
+  }
+}
 
 /// Repositório de autenticação real integrado com FirebaseAuth e o Firestore nomeado.
 class FirestoreAuthRepository implements AuthRepository {
@@ -215,33 +234,43 @@ class FirestoreCompanyRepository implements CompanyRepository {
 
   @override
   Future<List<Company>> getCompanies({String? search, String? statusFilter}) async {
-    final snap = await _collection.get();
-    var list = snap.docs.map((d) => Company.fromMap(d.data(), d.id)).toList();
+    try {
+      final snap = await _collection.get();
+      var list = snap.docs.map((d) => Company.fromMap(d.data(), d.id)).toList();
 
-    if (statusFilter != null && statusFilter.isNotEmpty) {
-      final sf = statusFilter.toLowerCase();
-      list = list.where((c) => c.status.toLowerCase() == sf).toList();
+      if (statusFilter != null && statusFilter.isNotEmpty) {
+        final sf = statusFilter.toLowerCase();
+        list = list.where((c) => c.status.toLowerCase() == sf).toList();
+      }
+
+      if (search != null && search.trim().isNotEmpty) {
+        final q = search.trim().toLowerCase();
+        list = list.where((c) {
+          return c.tradeName.toLowerCase().contains(q) ||
+              (c.legalName?.toLowerCase().contains(q) ?? false) ||
+              (c.phone?.contains(q) ?? false) ||
+              (c.contactName?.toLowerCase().contains(q) ?? false);
+        }).toList();
+      }
+
+      list.sort((a, b) => a.tradeName.toLowerCase().compareTo(b.tradeName.toLowerCase()));
+      return list;
+    } catch (e) {
+      debugPrint('[FirestoreCompanyRepository.getCompanies] Erro protegido: $e');
+      return [];
     }
-
-    if (search != null && search.trim().isNotEmpty) {
-      final q = search.trim().toLowerCase();
-      list = list.where((c) {
-        return c.tradeName.toLowerCase().contains(q) ||
-            (c.legalName?.toLowerCase().contains(q) ?? false) ||
-            (c.phone?.contains(q) ?? false) ||
-            (c.contactName?.toLowerCase().contains(q) ?? false);
-      }).toList();
-    }
-
-    list.sort((a, b) => a.tradeName.toLowerCase().compareTo(b.tradeName.toLowerCase()));
-    return list;
   }
 
   @override
   Future<Company?> getCompanyById(String id) async {
-    final doc = await _collection.doc(id).get();
-    if (!doc.exists || doc.data() == null) return null;
-    return Company.fromMap(doc.data()!, doc.id);
+    try {
+      final doc = await _collection.doc(id).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return Company.fromMap(doc.data()!, doc.id);
+    } catch (e) {
+      debugPrint('[FirestoreCompanyRepository.getCompanyById] Erro protegido: $e');
+      return null;
+    }
   }
 
   @override
@@ -277,11 +306,13 @@ class FirestoreCompanyRepository implements CompanyRepository {
 
   @override
   Stream<List<Company>> watchCompanies() {
-    return _collection.snapshots().map((snapshot) {
-      final list = snapshot.docs.map((d) => Company.fromMap(d.data(), d.id)).toList();
-      list.sort((a, b) => a.tradeName.toLowerCase().compareTo(b.tradeName.toLowerCase()));
-      return list;
-    });
+    return _safeStream(
+      _collection.snapshots().map((snapshot) {
+        final list = snapshot.docs.map((d) => Company.fromMap(d.data(), d.id)).toList();
+        list.sort((a, b) => a.tradeName.toLowerCase().compareTo(b.tradeName.toLowerCase()));
+        return list;
+      }),
+    );
   }
 }
 
@@ -299,28 +330,43 @@ class FirestoreServiceRepository implements ServiceRepository {
 
   @override
   Future<List<ServiceItem>> getAllServices({ServiceHealthStatus? statusFilter}) async {
-    final snap = await _collection.get();
-    var list = snap.docs.map((d) => ServiceItem.fromMap(d.data(), d.id)).toList();
-    if (statusFilter != null) {
-      list = list.where((s) => s.healthStatus == statusFilter).toList();
+    try {
+      final snap = await _collection.get();
+      var list = snap.docs.map((d) => ServiceItem.fromMap(d.data(), d.id)).toList();
+      if (statusFilter != null) {
+        list = list.where((s) => s.healthStatus == statusFilter).toList();
+      }
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    } catch (e) {
+      debugPrint('[FirestoreServiceRepository.getAllServices] Erro protegido: $e');
+      return [];
     }
-    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return list;
   }
 
   @override
   Future<List<ServiceItem>> getServicesByCompanyId(String companyId) async {
-    final snap = await _collection.where('companyId', isEqualTo: companyId).get();
-    var list = snap.docs.map((d) => ServiceItem.fromMap(d.data(), d.id)).toList();
-    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return list;
+    try {
+      final snap = await _collection.where('companyId', isEqualTo: companyId).get();
+      var list = snap.docs.map((d) => ServiceItem.fromMap(d.data(), d.id)).toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    } catch (e) {
+      debugPrint('[FirestoreServiceRepository.getServicesByCompanyId] Erro protegido: $e');
+      return [];
+    }
   }
 
   @override
   Future<ServiceItem?> getServiceById(String id) async {
-    final doc = await _collection.doc(id).get();
-    if (!doc.exists || doc.data() == null) return null;
-    return ServiceItem.fromMap(doc.data()!, doc.id);
+    try {
+      final doc = await _collection.doc(id).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return ServiceItem.fromMap(doc.data()!, doc.id);
+    } catch (e) {
+      debugPrint('[FirestoreServiceRepository.getServiceById] Erro protegido: $e');
+      return null;
+    }
   }
 
   @override
@@ -414,11 +460,13 @@ class FirestoreServiceRepository implements ServiceRepository {
 
   @override
   Stream<List<ServiceItem>> watchAllServices() {
-    return _collection.snapshots().map((s) {
-      final list = s.docs.map((d) => ServiceItem.fromMap(d.data(), d.id)).toList();
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
+    return _safeStream(
+      _collection.snapshots().map((s) {
+        final list = s.docs.map((d) => ServiceItem.fromMap(d.data(), d.id)).toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      }),
+    );
   }
 }
 
@@ -437,23 +485,33 @@ class FirestoreOrderRepository implements OrderRepository {
 
   @override
   Future<List<OrderItem>> getOrders({OrderStatus? statusFilter, String? companyId}) async {
-    final snap = await _collection.get();
-    var list = snap.docs.map((d) => OrderItem.fromMap(d.data(), d.id)).toList();
-    if (companyId != null && companyId.isNotEmpty) {
-      list = list.where((o) => o.companyId == companyId).toList();
+    try {
+      final snap = await _collection.get();
+      var list = snap.docs.map((d) => OrderItem.fromMap(d.data(), d.id)).toList();
+      if (companyId != null && companyId.isNotEmpty) {
+        list = list.where((o) => o.companyId == companyId).toList();
+      }
+      if (statusFilter != null) {
+        list = list.where((o) => o.status == statusFilter).toList();
+      }
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    } catch (e) {
+      debugPrint('[FirestoreOrderRepository.getOrders] Erro protegido: $e');
+      return [];
     }
-    if (statusFilter != null) {
-      list = list.where((o) => o.status == statusFilter).toList();
-    }
-    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return list;
   }
 
   @override
   Future<OrderItem?> getOrderById(String id) async {
-    final doc = await _collection.doc(id).get();
-    if (!doc.exists || doc.data() == null) return null;
-    return OrderItem.fromMap(doc.data()!, doc.id);
+    try {
+      final doc = await _collection.doc(id).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return OrderItem.fromMap(doc.data()!, doc.id);
+    } catch (e) {
+      debugPrint('[FirestoreOrderRepository.getOrderById] Erro protegido: $e');
+      return null;
+    }
   }
 
   @override
@@ -501,11 +559,13 @@ class FirestoreOrderRepository implements OrderRepository {
 
   @override
   Stream<List<OrderItem>> watchOrders() {
-    return _collection.snapshots().map((s) {
-      final list = s.docs.map((d) => OrderItem.fromMap(d.data(), d.id)).toList();
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
+    return _safeStream(
+      _collection.snapshots().map((s) {
+        final list = s.docs.map((d) => OrderItem.fromMap(d.data(), d.id)).toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      }),
+    );
   }
 }
 
@@ -523,36 +583,51 @@ class FirestoreDeviceRepository implements DeviceRepository {
 
   @override
   Future<List<DeviceItem>> getDevices({DeviceStatus? statusFilter, String? companyId}) async {
-    final snap = await _collection.get();
-    var list = snap.docs.map((d) => DeviceItem.fromMap(d.data(), d.id)).toList();
-    if (companyId != null && companyId.isNotEmpty) {
-      list = list.where((d) => d.assignedCompanyId == companyId).toList();
+    try {
+      final snap = await _collection.get();
+      var list = snap.docs.map((d) => DeviceItem.fromMap(d.data(), d.id)).toList();
+      if (companyId != null && companyId.isNotEmpty) {
+        list = list.where((d) => d.assignedCompanyId == companyId).toList();
+      }
+      if (statusFilter != null) {
+        list = list.where((d) => d.status == statusFilter).toList();
+      }
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    } catch (e) {
+      debugPrint('[FirestoreDeviceRepository.getDevices] Erro protegido: $e');
+      return [];
     }
-    if (statusFilter != null) {
-      list = list.where((d) => d.status == statusFilter).toList();
-    }
-    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    return list;
   }
 
   @override
   Future<DeviceItem?> getDeviceById(String id) async {
-    final doc = await _collection.doc(id).get();
-    if (!doc.exists || doc.data() == null) return null;
-    return DeviceItem.fromMap(doc.data()!, doc.id);
+    try {
+      final doc = await _collection.doc(id).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return DeviceItem.fromMap(doc.data()!, doc.id);
+    } catch (e) {
+      debugPrint('[FirestoreDeviceRepository.getDeviceById] Erro protegido: $e');
+      return null;
+    }
   }
 
   @override
   Future<DeviceItem?> getDeviceByNfcUid(String nfcUid) async {
-    final cleanUid = nfcUid.replaceAll(':', '').replaceAll('-', '').toLowerCase().trim();
-    if (cleanUid.isEmpty) return null;
-    final all = await getDevices();
-    return all.where((d) {
-      final devNfc = (d.nfcUid ?? '').replaceAll(':', '').replaceAll('-', '').toLowerCase().trim();
-      final devId = d.id.replaceAll(':', '').replaceAll('-', '').toLowerCase().trim();
-      final devBatch = d.batchId.replaceAll(':', '').replaceAll('-', '').toLowerCase().trim();
-      return devNfc == cleanUid || devId == cleanUid || devBatch == cleanUid;
-    }).firstOrNull;
+    try {
+      final cleanUid = nfcUid.replaceAll(':', '').replaceAll('-', '').toLowerCase().trim();
+      if (cleanUid.isEmpty) return null;
+      final all = await getDevices();
+      return all.where((d) {
+        final devNfc = (d.nfcUid ?? '').replaceAll(':', '').replaceAll('-', '').toLowerCase().trim();
+        final devId = d.id.replaceAll(':', '').replaceAll('-', '').toLowerCase().trim();
+        final devBatch = d.batchId.replaceAll(':', '').replaceAll('-', '').toLowerCase().trim();
+        return devNfc == cleanUid || devId == cleanUid || devBatch == cleanUid;
+      }).firstOrNull;
+    } catch (e) {
+      debugPrint('[FirestoreDeviceRepository.getDeviceByNfcUid] Erro protegido: $e');
+      return null;
+    }
   }
 
   @override
@@ -605,11 +680,13 @@ class FirestoreDeviceRepository implements DeviceRepository {
 
   @override
   Stream<List<DeviceItem>> watchDevices() {
-    return _collection.snapshots().map((s) {
-      final list = s.docs.map((d) => DeviceItem.fromMap(d.data(), d.id)).toList();
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return list;
-    });
+    return _safeStream(
+      _collection.snapshots().map((s) {
+        final list = s.docs.map((d) => DeviceItem.fromMap(d.data(), d.id)).toList();
+        list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        return list;
+      }),
+    );
   }
 }
 
@@ -625,16 +702,21 @@ class FirestoreActivityRepository implements ActivityRepository {
 
   @override
   Future<List<ActivityEntry>> getActivities({int limit = 50, String? entityType}) async {
-    final snap = await _collection.get();
-    var list = snap.docs.map((d) => ActivityEntry.fromMap(d.data(), d.id)).toList();
-    if (entityType != null && entityType.isNotEmpty) {
-      list = list.where((a) => a.entityType == entityType).toList();
+    try {
+      final snap = await _collection.get();
+      var list = snap.docs.map((d) => ActivityEntry.fromMap(d.data(), d.id)).toList();
+      if (entityType != null && entityType.isNotEmpty) {
+        list = list.where((a) => a.entityType == entityType).toList();
+      }
+      list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      if (list.length > limit) {
+        list = list.sublist(0, limit);
+      }
+      return list;
+    } catch (e) {
+      debugPrint('[FirestoreActivityRepository.getActivities] Erro protegido: $e');
+      return [];
     }
-    list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-    if (list.length > limit) {
-      list = list.sublist(0, limit);
-    }
-    return list;
   }
 
   @override
@@ -649,13 +731,255 @@ class FirestoreActivityRepository implements ActivityRepository {
 
   @override
   Stream<List<ActivityEntry>> watchActivities({int limit = 50}) {
-    return _collection.snapshots().map((s) {
-      final list = s.docs.map((d) => ActivityEntry.fromMap(d.data(), d.id)).toList();
-      list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
-      if (list.length > limit) {
-        return list.sublist(0, limit);
-      }
-      return list;
-    });
+    return _safeStream(
+      _collection.snapshots().map((s) {
+        final list = s.docs.map((d) => ActivityEntry.fromMap(d.data(), d.id)).toList();
+        list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        if (list.length > limit) {
+          return list.sublist(0, limit);
+        }
+        return list;
+      }),
+    );
+  }
+}
+
+/// Implementação Firestore de TemplateRepository.
+class FirestoreTemplateRepository implements TemplateRepository {
+  final CollectionReference<Map<String, dynamic>> _collection;
+
+  FirestoreTemplateRepository({FirebaseFirestore? firestore})
+      : _collection = (firestore ?? FirebaseBootstrap.getFirestoreInstance())
+            .collection('templates');
+
+  @override
+  Future<List<PlateTemplate>> getTemplates({String? category, String? status}) async {
+    try {
+      Query<Map<String, dynamic>> q = _collection;
+      if (category != null) q = q.where('category', isEqualTo: category);
+      if (status != null) q = q.where('status', isEqualTo: status);
+      final snap = await q.get();
+      return snap.docs.map((d) => PlateTemplate.fromMap(d.data(), d.id)).toList();
+    } catch (e) {
+      debugPrint('[FirestoreTemplateRepository.getTemplates] Erro protegido: $e');
+      return [];
+    }
+  }
+
+  @override
+  Future<PlateTemplate?> getTemplateById(String id) async {
+    try {
+      final doc = await _collection.doc(id).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return PlateTemplate.fromMap(doc.data()!, doc.id);
+    } catch (e) {
+      debugPrint('[FirestoreTemplateRepository.getTemplateById] Erro protegido: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<PlateTemplate> createTemplate(PlateTemplate template) async {
+    final docRef = template.id.isEmpty ? _collection.doc() : _collection.doc(template.id);
+    final now = DateTime.now();
+    final toSave = template.copyWith(id: docRef.id, createdAt: now, updatedAt: now);
+    await docRef.set(toSave.toMap());
+    return toSave;
+  }
+
+  @override
+  Future<PlateTemplate> updateTemplate(PlateTemplate template) async {
+    final now = DateTime.now();
+    final toSave = template.copyWith(updatedAt: now);
+    await _collection.doc(template.id).set(toSave.toMap(), SetOptions(merge: true));
+    return toSave;
+  }
+
+  @override
+  Future<void> deleteTemplate(String id) async {
+    await _collection.doc(id).delete();
+  }
+
+  @override
+  Stream<List<PlateTemplate>> watchTemplates() {
+    return _safeStream(
+      _collection.snapshots().map(
+        (s) => s.docs.map((d) => PlateTemplate.fromMap(d.data(), d.id)).toList(),
+      ),
+    );
+  }
+}
+
+/// Implementação Firestore de QrCodeRepository.
+class FirestoreQrCodeRepository implements QrCodeRepository {
+  final CollectionReference<Map<String, dynamic>> _collection;
+
+  FirestoreQrCodeRepository({FirebaseFirestore? firestore})
+      : _collection = (firestore ?? FirebaseBootstrap.getFirestoreInstance())
+            .collection('qr_codes');
+
+  @override
+  Future<List<DynamicQrCode>> getQrCodes({String? companyId}) async {
+    try {
+      Query<Map<String, dynamic>> q = _collection;
+      if (companyId != null) q = q.where('companyId', isEqualTo: companyId);
+      final snap = await q.get();
+      return snap.docs.map((d) => DynamicQrCode.fromMap(d.data(), d.id)).toList();
+    } catch (e) {
+      debugPrint('[FirestoreQrCodeRepository.getQrCodes] Erro protegido: $e');
+      return [];
+    }
+  }
+
+  @override
+  Future<DynamicQrCode?> getQrCodeById(String id) async {
+    try {
+      final doc = await _collection.doc(id).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return DynamicQrCode.fromMap(doc.data()!, doc.id);
+    } catch (e) {
+      debugPrint('[FirestoreQrCodeRepository.getQrCodeById] Erro protegido: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<DynamicQrCode?> getQrCodeByShortCode(String shortCode) async {
+    try {
+      final snap = await _collection
+          .where('shortCode', isEqualTo: shortCode.toUpperCase())
+          .limit(1)
+          .get();
+      if (snap.docs.isEmpty) return null;
+      final d = snap.docs.first;
+      return DynamicQrCode.fromMap(d.data(), d.id);
+    } catch (e) {
+      debugPrint('[FirestoreQrCodeRepository.getQrCodeByShortCode] Erro protegido: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<DynamicQrCode> createQrCode(DynamicQrCode qrCode) async {
+    final docRef = qrCode.id.isEmpty ? _collection.doc() : _collection.doc(qrCode.id);
+    final now = DateTime.now();
+    final toSave = qrCode.copyWith(id: docRef.id, createdAt: now, updatedAt: now);
+    await docRef.set(toSave.toMap());
+    return toSave;
+  }
+
+  @override
+  Future<DynamicQrCode> updateDestination(
+    String id,
+    String newDestination, {
+    required String changedByUid,
+    required String changedByName,
+  }) async {
+    final existing = await getQrCodeById(id);
+    if (existing == null) throw StateError('QR Code não encontrado: $id');
+    final now = DateTime.now();
+    final newHistory = List<QrRedirectHistory>.from(existing.history)
+      ..add(QrRedirectHistory(
+        previousUrl: existing.currentDestination,
+        newUrl: newDestination,
+        changedByUid: changedByUid,
+        changedByName: changedByName,
+        changedAt: now,
+      ));
+    final updated = existing.copyWith(
+      currentDestination: newDestination,
+      history: newHistory,
+      updatedAt: now,
+    );
+    await _collection.doc(id).set(updated.toMap(), SetOptions(merge: true));
+    return updated;
+  }
+
+  @override
+  Future<void> incrementScanCount(String id) async {
+    await _collection.doc(id).update({'scanCount': FieldValue.increment(1)});
+  }
+
+  @override
+  Future<void> deleteQrCode(String id) async {
+    await _collection.doc(id).delete();
+  }
+
+  @override
+  Stream<List<DynamicQrCode>> watchQrCodes({String? companyId}) {
+    Query<Map<String, dynamic>> q = _collection;
+    if (companyId != null) q = q.where('companyId', isEqualTo: companyId);
+    return _safeStream(
+      q.snapshots().map(
+        (s) => s.docs.map((d) => DynamicQrCode.fromMap(d.data(), d.id)).toList(),
+      ),
+    );
+  }
+}
+
+/// Implementação Firestore de GeneratedDesignRepository.
+class FirestoreGeneratedDesignRepository implements GeneratedDesignRepository {
+  final CollectionReference<Map<String, dynamic>> _collection;
+
+  FirestoreGeneratedDesignRepository({FirebaseFirestore? firestore})
+      : _collection = (firestore ?? FirebaseBootstrap.getFirestoreInstance())
+            .collection('generated_designs');
+
+  @override
+  Future<List<GeneratedDesign>> getDesigns({String? companyId}) async {
+    try {
+      Query<Map<String, dynamic>> q = _collection;
+      if (companyId != null) q = q.where('companyId', isEqualTo: companyId);
+      final snap = await q.get();
+      return snap.docs.map((d) => GeneratedDesign.fromMap(d.data(), d.id)).toList();
+    } catch (e) {
+      debugPrint('[FirestoreGeneratedDesignRepository.getDesigns] Erro protegido: $e');
+      return [];
+    }
+  }
+
+  @override
+  Future<GeneratedDesign?> getDesignById(String id) async {
+    try {
+      final doc = await _collection.doc(id).get();
+      if (!doc.exists || doc.data() == null) return null;
+      return GeneratedDesign.fromMap(doc.data()!, doc.id);
+    } catch (e) {
+      debugPrint('[FirestoreGeneratedDesignRepository.getDesignById] Erro protegido: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<GeneratedDesign> createDesign(GeneratedDesign design) async {
+    final docRef = design.id.isEmpty ? _collection.doc() : _collection.doc(design.id);
+    final now = DateTime.now();
+    final toSave = design.copyWith(id: docRef.id, createdAt: now, updatedAt: now);
+    await docRef.set(toSave.toMap());
+    return toSave;
+  }
+
+  @override
+  Future<GeneratedDesign> updateDesign(GeneratedDesign design) async {
+    final now = DateTime.now();
+    final toSave = design.copyWith(updatedAt: now);
+    await _collection.doc(design.id).set(toSave.toMap(), SetOptions(merge: true));
+    return toSave;
+  }
+
+  @override
+  Future<void> deleteDesign(String id) async {
+    await _collection.doc(id).delete();
+  }
+
+  @override
+  Stream<List<GeneratedDesign>> watchDesigns({String? companyId}) {
+    Query<Map<String, dynamic>> q = _collection;
+    if (companyId != null) q = q.where('companyId', isEqualTo: companyId);
+    return _safeStream(
+      q.snapshots().map(
+        (s) => s.docs.map((d) => GeneratedDesign.fromMap(d.data(), d.id)).toList(),
+      ),
+    );
   }
 }

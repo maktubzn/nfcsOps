@@ -7,6 +7,12 @@ import '../models/order_item.dart';
 import '../models/service_item.dart';
 import '../models/user_profile.dart';
 import '../services/health_check_service.dart';
+import '../models/plate_template.dart';
+import '../models/dynamic_qr_code.dart';
+import '../models/generated_design.dart';
+import 'template_repository.dart';
+import 'qr_code_repository.dart';
+import 'generated_design_repository.dart';
 import 'activity_repository.dart';
 import 'auth_repository.dart';
 import 'company_repository.dart';
@@ -694,5 +700,253 @@ class MockHealthCheckService implements HealthCheckService {
       return ServiceHealthStatus.error;
     }
     return ServiceHealthStatus.warning;
+  }
+}
+
+/// Implementação InMemory de TemplateRepository.
+class InMemoryTemplateRepository implements TemplateRepository {
+  final Map<String, PlateTemplate> _templates = {};
+  final _controller = StreamController<List<PlateTemplate>>.broadcast();
+
+  InMemoryTemplateRepository({List<PlateTemplate>? initial}) {
+    if (initial != null) {
+      for (final t in initial) {
+        _templates[t.id] = t;
+      }
+    }
+  }
+
+  void _notify() {
+    _controller.add(_templates.values.toList());
+  }
+
+  @override
+  Future<List<PlateTemplate>> getTemplates({String? category, String? status}) async {
+    var list = _templates.values.toList();
+    if (category != null) {
+      list = list.where((t) => t.category == category).toList();
+    }
+    if (status != null) {
+      list = list.where((t) => t.status == status).toList();
+    }
+    return list;
+  }
+
+  @override
+  Future<PlateTemplate?> getTemplateById(String id) async {
+    return _templates[id];
+  }
+
+  @override
+  Future<PlateTemplate> createTemplate(PlateTemplate template) async {
+    final id = template.id.isEmpty ? 'tmpl-${DateTime.now().millisecondsSinceEpoch}' : template.id;
+    final now = DateTime.now();
+    final item = template.copyWith(id: id, createdAt: now, updatedAt: now);
+    _templates[id] = item;
+    _notify();
+    return item;
+  }
+
+  @override
+  Future<PlateTemplate> updateTemplate(PlateTemplate template) async {
+    final now = DateTime.now();
+    final item = template.copyWith(updatedAt: now);
+    _templates[template.id] = item;
+    _notify();
+    return item;
+  }
+
+  @override
+  Future<void> deleteTemplate(String id) async {
+    _templates.remove(id);
+    _notify();
+  }
+
+  @override
+  Stream<List<PlateTemplate>> watchTemplates() async* {
+    yield _templates.values.toList();
+    yield* _controller.stream;
+  }
+
+  void dispose() {
+    _controller.close();
+  }
+}
+
+/// Implementação InMemory de QrCodeRepository.
+class InMemoryQrCodeRepository implements QrCodeRepository {
+  final Map<String, DynamicQrCode> _qrCodes = {};
+  final _controller = StreamController<List<DynamicQrCode>>.broadcast();
+
+  InMemoryQrCodeRepository({List<DynamicQrCode>? initial}) {
+    if (initial != null) {
+      for (final q in initial) {
+        _qrCodes[q.id] = q;
+      }
+    }
+  }
+
+  void _notify() {
+    _controller.add(_qrCodes.values.toList());
+  }
+
+  @override
+  Future<List<DynamicQrCode>> getQrCodes({String? companyId}) async {
+    var list = _qrCodes.values.toList();
+    if (companyId != null) {
+      list = list.where((q) => q.companyId == companyId).toList();
+    }
+    return list;
+  }
+
+  @override
+  Future<DynamicQrCode?> getQrCodeById(String id) async {
+    return _qrCodes[id];
+  }
+
+  @override
+  Future<DynamicQrCode?> getQrCodeByShortCode(String shortCode) async {
+    return _qrCodes.values
+        .where((q) => q.shortCode.toLowerCase() == shortCode.toLowerCase())
+        .firstOrNull;
+  }
+
+  @override
+  Future<DynamicQrCode> createQrCode(DynamicQrCode qrCode) async {
+    final id = qrCode.id.isEmpty ? 'qr-${DateTime.now().millisecondsSinceEpoch}' : qrCode.id;
+    final now = DateTime.now();
+    final item = qrCode.copyWith(id: id, createdAt: now, updatedAt: now);
+    _qrCodes[id] = item;
+    _notify();
+    return item;
+  }
+
+  @override
+  Future<DynamicQrCode> updateDestination(
+    String id,
+    String newDestination, {
+    required String changedByUid,
+    required String changedByName,
+  }) async {
+    final existing = _qrCodes[id];
+    if (existing == null) throw StateError('QR Code não encontrado: $id');
+    final now = DateTime.now();
+    final newHistory = List<QrRedirectHistory>.from(existing.history)
+      ..add(QrRedirectHistory(
+        previousUrl: existing.currentDestination,
+        newUrl: newDestination,
+        changedByUid: changedByUid,
+        changedByName: changedByName,
+        changedAt: now,
+      ));
+    final updated = existing.copyWith(
+      currentDestination: newDestination,
+      history: newHistory,
+      updatedAt: now,
+    );
+    _qrCodes[id] = updated;
+    _notify();
+    return updated;
+  }
+
+  @override
+  Future<void> incrementScanCount(String id) async {
+    final existing = _qrCodes[id];
+    if (existing == null) return;
+    _qrCodes[id] = existing.copyWith(scanCount: existing.scanCount + 1);
+    _notify();
+  }
+
+  @override
+  Future<void> deleteQrCode(String id) async {
+    _qrCodes.remove(id);
+    _notify();
+  }
+
+  @override
+  Stream<List<DynamicQrCode>> watchQrCodes({String? companyId}) async* {
+    if (companyId != null) {
+      yield _qrCodes.values.where((q) => q.companyId == companyId).toList();
+      yield* _controller.stream.map((list) => list.where((q) => q.companyId == companyId).toList());
+    } else {
+      yield _qrCodes.values.toList();
+      yield* _controller.stream;
+    }
+  }
+
+  void dispose() {
+    _controller.close();
+  }
+}
+
+/// Implementação InMemory de GeneratedDesignRepository.
+class InMemoryGeneratedDesignRepository implements GeneratedDesignRepository {
+  final Map<String, GeneratedDesign> _designs = {};
+  final _controller = StreamController<List<GeneratedDesign>>.broadcast();
+
+  InMemoryGeneratedDesignRepository({List<GeneratedDesign>? initial}) {
+    if (initial != null) {
+      for (final d in initial) {
+        _designs[d.id] = d;
+      }
+    }
+  }
+
+  void _notify() {
+    _controller.add(_designs.values.toList());
+  }
+
+  @override
+  Future<List<GeneratedDesign>> getDesigns({String? companyId}) async {
+    var list = _designs.values.toList();
+    if (companyId != null) {
+      list = list.where((d) => d.companyId == companyId).toList();
+    }
+    return list;
+  }
+
+  @override
+  Future<GeneratedDesign?> getDesignById(String id) async {
+    return _designs[id];
+  }
+
+  @override
+  Future<GeneratedDesign> createDesign(GeneratedDesign design) async {
+    final id = design.id.isEmpty ? 'dsg-${DateTime.now().millisecondsSinceEpoch}' : design.id;
+    final now = DateTime.now();
+    final item = design.copyWith(id: id, createdAt: now, updatedAt: now);
+    _designs[id] = item;
+    _notify();
+    return item;
+  }
+
+  @override
+  Future<GeneratedDesign> updateDesign(GeneratedDesign design) async {
+    final now = DateTime.now();
+    final item = design.copyWith(updatedAt: now);
+    _designs[design.id] = item;
+    _notify();
+    return item;
+  }
+
+  @override
+  Future<void> deleteDesign(String id) async {
+    _designs.remove(id);
+    _notify();
+  }
+
+  @override
+  Stream<List<GeneratedDesign>> watchDesigns({String? companyId}) async* {
+    if (companyId != null) {
+      yield _designs.values.where((d) => d.companyId == companyId).toList();
+      yield* _controller.stream.map((list) => list.where((d) => d.companyId == companyId).toList());
+    } else {
+      yield _designs.values.toList();
+      yield* _controller.stream;
+    }
+  }
+
+  void dispose() {
+    _controller.close();
   }
 }

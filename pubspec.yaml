@@ -22,11 +22,20 @@ dependencies:
   url_launcher: ^6.3.1
   http: ^1.6.0
   nfc_manager: ^4.2.1
+  image_picker: ^1.1.2
+  path_provider: ^2.1.5
+  share_plus: ^10.1.4
+  cached_network_image: ^3.4.1
+  uuid: ^4.5.1
+  qr_code_dart_decoder: ^0.3.0
+  image: ^4.10.1
+  zxing_lib: ^1.1.4
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  qr: ^3.0.2
 
 flutter:
   uses-material-design: true

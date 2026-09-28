@@ -21,6 +21,14 @@ import '../../features/services/presentation/create_service_screen.dart';
 import '../../features/services/presentation/edit_service_screen.dart';
 import '../../features/services/presentation/service_detail_screen.dart';
 import '../../features/settings/presentation/settings_screen.dart';
+import '../../features/designs/presentation/design_preview_screen.dart';
+import '../../features/designs/presentation/generate_design_screen.dart';
+import '../../features/qr/presentation/qr_detail_screen.dart';
+import '../../features/qr/presentation/qr_library_screen.dart';
+import '../../features/qr/presentation/qr_redirect_screen.dart';
+import '../../features/templates/presentation/create_template_screen.dart';
+import '../../features/templates/presentation/template_detail_screen.dart';
+import '../../features/templates/presentation/templates_screen.dart';
 import '../models/user_profile.dart';
 import '../widgets/nfc_bottom_nav_bar.dart';
 
@@ -46,6 +54,7 @@ GoRouter createAppRouter({
       final user = getCurrentUser != null ? getCurrentUser() : initialUser;
       final hasSession = user != null && user.isAuthorized;
       final loc = state.matchedLocation;
+      if (loc.startsWith('/q/')) return null;
       final isLoggingIn = loc == '/login';
 
       if (!hasSession && !isLoggingIn) {
@@ -130,6 +139,65 @@ GoRouter createAppRouter({
         path: '/inventory/new',
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => const CreateDeviceScreen(),
+      ),
+
+      // Rota pública de redirecionamento dinâmico
+      GoRoute(
+        path: '/q/:shortCode',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => QrRedirectScreen(
+          shortCode: state.pathParameters['shortCode'] ?? '',
+        ),
+      ),
+
+      // Templates de placas (Sem Bottom Nav)
+      GoRoute(
+        path: '/templates',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const TemplatesScreen(),
+      ),
+      GoRoute(
+        path: '/templates/new',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const CreateTemplateScreen(),
+      ),
+      GoRoute(
+        path: '/templates/:id',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => TemplateDetailScreen(
+          templateId: state.pathParameters['id'] ?? '',
+        ),
+      ),
+
+      // Biblioteca de QR Codes (Sem Bottom Nav)
+      GoRoute(
+        path: '/qr-codes',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => const QrLibraryScreen(),
+      ),
+      GoRoute(
+        path: '/qr-codes/:id',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => QrDetailScreen(
+          qrId: state.pathParameters['id'] ?? '',
+        ),
+      ),
+
+      // Geração e prévia de arte da placa (Sem Bottom Nav)
+      GoRoute(
+        path: '/designs/generate',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => GenerateDesignScreen(
+          initialCompanyId: state.uri.queryParameters['companyId'],
+          initialTemplateId: state.uri.queryParameters['templateId'],
+        ),
+      ),
+      GoRoute(
+        path: '/designs/:id/preview',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => DesignPreviewScreen(
+          designId: state.pathParameters['id'] ?? '',
+        ),
       ),
 
       // Shell Route para as telas principais com persistent NfcBottomNavBar

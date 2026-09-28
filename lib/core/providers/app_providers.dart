@@ -9,6 +9,9 @@ import '../models/device_item.dart';
 import '../models/order_item.dart';
 import '../models/service_item.dart';
 import '../models/user_profile.dart';
+import '../models/plate_template.dart';
+import '../models/dynamic_qr_code.dart';
+import '../models/generated_design.dart';
 import '../repositories/activity_repository.dart';
 import '../repositories/auth_repository.dart';
 import '../repositories/company_repository.dart';
@@ -17,6 +20,9 @@ import '../repositories/firestore_repositories.dart';
 import '../repositories/in_memory_repositories.dart';
 import '../repositories/order_repository.dart';
 import '../repositories/service_repository.dart';
+import '../repositories/template_repository.dart';
+import '../repositories/qr_code_repository.dart';
+import '../repositories/generated_design_repository.dart';
 import '../services/health_check_service.dart';
 import '../services/nfc_service.dart';
 import '../services/real_health_check_service.dart';
@@ -101,6 +107,33 @@ final activityRepositoryProvider = Provider<ActivityRepository>((ref) {
   return InMemoryActivityRepository();
 });
 
+/// Provider do repositório de templates de placas
+final templateRepositoryProvider = Provider<TemplateRepository>((ref) {
+  final mode = ref.watch(appModeProvider);
+  if (mode == AppMode.production) {
+    return FirestoreTemplateRepository();
+  }
+  return InMemoryTemplateRepository();
+});
+
+/// Provider do repositório de QR Codes dinâmicos
+final qrCodeRepositoryProvider = Provider<QrCodeRepository>((ref) {
+  final mode = ref.watch(appModeProvider);
+  if (mode == AppMode.production) {
+    return FirestoreQrCodeRepository();
+  }
+  return InMemoryQrCodeRepository();
+});
+
+/// Provider do repositório de designs gerados
+final generatedDesignRepositoryProvider = Provider<GeneratedDesignRepository>((ref) {
+  final mode = ref.watch(appModeProvider);
+  if (mode == AppMode.production) {
+    return FirestoreGeneratedDesignRepository();
+  }
+  return InMemoryGeneratedDesignRepository();
+});
+
 /// Provider do serviço de verificação de saúde (respeitando conectividade F-03)
 final healthCheckServiceProvider = Provider<HealthCheckService>((ref) {
   final mode = ref.watch(appModeProvider);
@@ -156,6 +189,24 @@ final ordersStreamProvider = StreamProvider<List<OrderItem>>((ref) {
 final activitiesStreamProvider = StreamProvider<List<ActivityEntry>>((ref) {
   final repo = ref.watch(activityRepositoryProvider);
   return repo.watchActivities();
+});
+
+/// Stream reativa de templates
+final templatesStreamProvider = StreamProvider<List<PlateTemplate>>((ref) {
+  final repo = ref.watch(templateRepositoryProvider);
+  return repo.watchTemplates();
+});
+
+/// Stream reativa de QR Codes dinâmicos
+final qrCodesStreamProvider = StreamProvider<List<DynamicQrCode>>((ref) {
+  final repo = ref.watch(qrCodeRepositoryProvider);
+  return repo.watchQrCodes();
+});
+
+/// Stream reativa de designs gerados
+final generatedDesignsStreamProvider = StreamProvider<List<GeneratedDesign>>((ref) {
+  final repo = ref.watch(generatedDesignRepositoryProvider);
+  return repo.watchDesigns();
 });
 
 /// Notifier que reage a streams para acionar o redirect do GoRouter sem recriá-lo

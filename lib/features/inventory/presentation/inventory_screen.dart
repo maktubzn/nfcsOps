@@ -321,6 +321,10 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
                           _buildPill(label: 'Placas', isSelected: _selectedFilter == 'placas', onTap: () => setState(() => _selectedFilter = 'placas')),
                           const SizedBox(width: 8),
                           _buildPill(label: 'Cartões', isSelected: _selectedFilter == 'cartoes', onTap: () => setState(() => _selectedFilter = 'cartoes')),
+                          const SizedBox(width: 8),
+                          _buildActionPill(icon: LucideIcons.layoutTemplate, label: 'Modelos', onTap: () => context.push('/templates')),
+                          const SizedBox(width: 8),
+                          _buildActionPill(icon: Icons.qr_code_2, label: 'QRs Dinâmicos', onTap: () => context.push('/qr-codes')),
                         ],
                       ),
                     ),
@@ -507,6 +511,37 @@ class _InventoryScreenState extends ConsumerState<InventoryScreen> {
             fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             color: isSelected ? const Color(0xFF10110F) : Colors.white,
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionPill({required IconData icon, required String label, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E201D),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: AppColors.orangeAction.withValues(alpha: 0.5)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: AppColors.orangeAction),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ],
         ),
       ),
     );

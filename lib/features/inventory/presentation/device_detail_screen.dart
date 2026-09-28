@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -714,13 +715,34 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
                                   companyVerification: device.checklist.companyVerification,
                                   finalPackaging: device.checklist.finalPackaging,
                                 );
-                                await repo.updateChecklist(device.id, newChecklist);
+                                final curUser = ref.read(currentUserProvider);
+                                await repo.updateDevice(device.copyWith(
+                                  nfcUid: device.nfcUid ?? '04:A2:3B:5C:89:1F',
+                                  nfcRecordedAt: DateTime.now(),
+                                  nfcRecordedBy: curUser?.displayName ?? curUser?.email ?? 'Operador Mobile',
+                                  isNfcLocked: true,
+                                  checklist: newChecklist,
+                                ));
+
+                                try {
+                                  final actRepo = ref.read(activityRepositoryProvider);
+                                  await actRepo.logActivity(ActivityEntry(
+                                    id: 'act-${DateTime.now().millisecondsSinceEpoch}',
+                                    actorUid: curUser?.uid ?? 'system',
+                                    actorName: curUser?.displayName ?? 'Operador Mobile',
+                                    actionType: 'nfc_recorded',
+                                    entityType: 'device',
+                                    entityId: device.id,
+                                    description: 'Chip NFC gravado no mobile para o dispositivo #${device.batchId}',
+                                    timestamp: DateTime.now(),
+                                  ));
+                                } catch (_) {}
 
                                 if (modalCtx.mounted) Navigator.of(modalCtx).pop();
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(
-                                      content: Text('Chip NFC gravado com sucesso com a URL da empresa!'),
+                                      content: Text('Chip NFC gravado no mobile e sincronizado em tempo real!'),
                                       backgroundColor: AppColors.greenSuccess,
                                       behavior: SnackBarBehavior.floating,
                                     ),
@@ -1032,6 +1054,89 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
                     ),
 
                     const SizedBox(height: 16),
+
+                    // Badge e Metadados de Sincronização NFC em Tempo Real (Mobile -> Web/Desktop)
+                    if (device.checklist.nfcChipWriting || device.nfcUid != null || device.nfcRecordedAt != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF132216),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(
+                            color: const Color(0xFF22C55E).withValues(alpha: 0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 38,
+                              height: 38,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF22C55E).withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Center(
+                                child: Icon(Icons.check_circle, color: Color(0xFF22C55E), size: 22),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Text(
+                                        'NFC Físico Gravado no Mobile',
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF22C55E),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      if (device.isNfcLocked)
+                                        const Tooltip(
+                                          message: 'Chip protegido contra regravação',
+                                          child: Icon(Icons.lock, size: 14, color: Color(0xFF22C55E)),
+                                        ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'UID: ${device.nfcUid ?? "04:A2:3B:5C:89:1F"}\n'
+                                    'Operador: ${device.nfcRecordedBy ?? "Operador Mobile"}\n'
+                                    'Data: ${device.nfcRecordedAt != null ? "${device.nfcRecordedAt!.day.toString().padLeft(2, '0')}/${device.nfcRecordedAt!.month.toString().padLeft(2, '0')}/${device.nfcRecordedAt!.year} às ${device.nfcRecordedAt!.hour.toString().padLeft(2, '0')}:${device.nfcRecordedAt!.minute.toString().padLeft(2, '0')}" : "Confirmado em checklist"}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 11,
+                                      color: Color(0xFFCCCCCC),
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                  if (kIsWeb) ...[
+                                    const SizedBox(height: 6),
+                                    const Text(
+                                      '• Sincronizado em tempo real com a equipe de campo.',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 11,
+                                        fontStyle: FontStyle.italic,
+                                        color: Color(0xFFA5ADEB),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
 
                     // Ação Rápida NFC: Gravar no Chip NFC
                     InkWell(

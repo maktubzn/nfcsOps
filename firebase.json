@@ -1,0 +1,8 @@
+{
+  "firestore": [
+    {
+      "database": "ai-studio-conectordebanco-005a990b-ecd4-41ad-ba1e-0e68b83c29fd",
+      "rules": "firestore.rules"
+    }
+  ]
+}

@@ -81,6 +81,9 @@ class DeviceItem {
   final String id;
   final String batchId;
   final String? nfcUid; // Identificador físico do chip NFC (ex: 04:A2:3B:5C:89:1F)
+  final DateTime? nfcRecordedAt; // Data/hora da gravação física via rádio
+  final String? nfcRecordedBy; // Nome ou email do operador que gravou
+  final bool isNfcLocked; // Se o chip foi travado contra regravação
   final String deviceType; // display_acrilico, cartao_pvc, adesivo_resinado, chaveiro, outro
   final DeviceStatus status;
   final String? primaryServiceId;
@@ -94,6 +97,9 @@ class DeviceItem {
     required this.id,
     required this.batchId,
     this.nfcUid,
+    this.nfcRecordedAt,
+    this.nfcRecordedBy,
+    this.isNfcLocked = false,
     required this.deviceType,
     required this.status,
     this.primaryServiceId,
@@ -108,6 +114,9 @@ class DeviceItem {
     String? id,
     String? batchId,
     String? nfcUid,
+    DateTime? nfcRecordedAt,
+    String? nfcRecordedBy,
+    bool? isNfcLocked,
     String? deviceType,
     DeviceStatus? status,
     String? primaryServiceId,
@@ -123,6 +132,9 @@ class DeviceItem {
       id: id ?? this.id,
       batchId: batchId ?? this.batchId,
       nfcUid: nfcUid ?? this.nfcUid,
+      nfcRecordedAt: nfcRecordedAt ?? this.nfcRecordedAt,
+      nfcRecordedBy: nfcRecordedBy ?? this.nfcRecordedBy,
+      isNfcLocked: isNfcLocked ?? this.isNfcLocked,
       deviceType: deviceType ?? this.deviceType,
       status: status ?? this.status,
       primaryServiceId: clearPrimaryService ? null : (primaryServiceId ?? this.primaryServiceId),
@@ -139,6 +151,9 @@ class DeviceItem {
       'id': id,
       'batchId': batchId,
       'nfcUid': nfcUid,
+      'nfcRecordedAt': nfcRecordedAt?.toIso8601String(),
+      'nfcRecordedBy': nfcRecordedBy,
+      'isNfcLocked': isNfcLocked,
       'deviceType': deviceType,
       'status': status.name,
       'primaryServiceId': primaryServiceId,
@@ -176,6 +191,11 @@ class DeviceItem {
       id: id,
       batchId: map['batchId'] as String? ?? map['internalCode'] as String? ?? '',
       nfcUid: map['nfcUid'] as String?,
+      nfcRecordedAt: map['nfcRecordedAt'] != null
+          ? DateTime.tryParse(map['nfcRecordedAt'].toString())
+          : null,
+      nfcRecordedBy: map['nfcRecordedBy'] as String?,
+      isNfcLocked: map['isNfcLocked'] as bool? ?? false,
       deviceType: dType,
       status: st,
       primaryServiceId: map['primaryServiceId'] as String? ?? map['serviceId'] as String?,

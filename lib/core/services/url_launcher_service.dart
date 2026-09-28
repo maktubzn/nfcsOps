@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Serviço utilitário robusto para abertura de URLs externas, WhatsApp e telefone.
@@ -147,7 +148,7 @@ class UrlLauncherService {
     return ok;
   }
 
-  /// Dispara ligação telefônica.
+  /// Dispara ligação telefônica no mobile ou copia para clipboard no desktop.
   static Future<bool> makePhoneCall(String phone) async {
     try {
       final digits = phone.replaceAll(RegExp(r'[^0-9+]'), '');
@@ -161,6 +162,41 @@ class UrlLauncherService {
     } catch (e) {
       debugPrint('Erro ao ligar para o telefone: $phone -> $e');
       return false;
+    }
+  }
+
+  /// Dispara ligação no celular ou copia para a área de transferência no Desktop/Web.
+  static Future<void> makePhoneCallWithFeedback(BuildContext context, String phone) async {
+    final isDesktopPlatform = !kIsWeb && (defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.linux ||
+        defaultTargetPlatform == TargetPlatform.macOS);
+
+    if (kIsWeb || isDesktopPlatform) {
+      await Clipboard.setData(ClipboardData(text: phone));
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Telefone $phone copiado! (Ligações diretas exclusivas no app móvel)'),
+            backgroundColor: const Color(0xFF22C55E),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return;
+    }
+
+    final success = await makePhoneCall(phone);
+    if (!context.mounted) return;
+    if (!success) {
+      await Clipboard.setData(ClipboardData(text: phone));
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Número $phone copiado para discagem.'),
+          backgroundColor: const Color(0xFFFACC15),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 }

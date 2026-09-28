@@ -1,0 +1,100 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Catch-All Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Connection test probe
+    match /test/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Users Collection (Operadores)
+    match /users/{userId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+      allow update: if isSignedIn() && request.auth.uid == userId && isValidId(userId);
+      allow delete: if false;
+    }
+
+    // Companies Collection
+    match /companies/{companyId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(companyId);
+      allow delete: if isSignedIn() && isValidId(companyId);
+    }
+
+    // Services Collection
+    match /services/{serviceId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(serviceId);
+      allow delete: if isSignedIn() && isValidId(serviceId);
+
+      // Subcollection: healthChecks
+      match /healthChecks/{checkId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && isValidId(checkId);
+        allow update, delete: if false;
+      }
+    }
+
+    // Devices Collection
+    match /devices/{deviceId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(deviceId);
+      allow delete: if isSignedIn() && isValidId(deviceId);
+    }
+
+    // Orders Collection
+    match /orders/{orderId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(orderId);
+      allow delete: if isSignedIn() && isValidId(orderId);
+    }
+
+    // Activities Collection
+    match /activities/{activityId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(activityId);
+      allow update, delete: if false;
+    }
+
+    // Plate Templates Collection (Modelos de Placas)
+    match /templates/{templateId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(templateId);
+      allow delete: if isSignedIn() && isValidId(templateId);
+    }
+
+    // Dynamic QR Codes Collection (QR Codes Dinâmicos)
+    match /qr_codes/{qrCodeId} {
+      // Leitura aberta para redirecionamento público (/q/:shortCode), mutação restrita a operadores autenticados
+      allow read: if true;
+      allow create, update: if isSignedIn() && isValidId(qrCodeId);
+      allow delete: if isSignedIn() && isValidId(qrCodeId);
+    }
+
+    // Generated Plate Designs Collection (Artes Geradas)
+    match /generated_designs/{designId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && isValidId(designId);
+      allow delete: if isSignedIn() && isValidId(designId);
+    }
+  }
+}
