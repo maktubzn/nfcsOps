@@ -13,6 +13,7 @@ import '../../../core/models/generated_design.dart';
 import '../../../core/providers/app_providers.dart';
 import '../../../core/services/url_launcher_service.dart';
 import '../../../core/theme/app_colors.dart';
+import 'widgets/nfc_write_modal.dart';
 
 class DesignPreviewScreen extends ConsumerStatefulWidget {
   final String designId;
@@ -284,7 +285,47 @@ class _DesignPreviewScreenState extends ConsumerState<DesignPreviewScreen> {
               const SizedBox(height: 12),
 
               // Botões Secundários
-              if (qrCode != null) ...[
+              if (template?.isCanva == true) ...[
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFF333532)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                        onPressed: () {
+                          final canvaUrl = template?.page1DynamicUrl ?? qrCode?.currentDestination ?? '';
+                          if (canvaUrl.isNotEmpty) {
+                            UrlLauncherService.openUrlWithFeedback(context, canvaUrl);
+                          }
+                        },
+                        icon: const Icon(LucideIcons.externalLink, size: 16),
+                        label: const Text('Testar Link', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF22C55E),
+                          side: const BorderSide(color: Color(0xFF22C55E)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                        onPressed: () {
+                          final canvaUrl = template?.page1DynamicUrl ?? qrCode?.currentDestination ?? '';
+                          NfcWriteModal.show(context, url: canvaUrl, companyName: company?.tradeName);
+                        },
+                        icon: const Icon(LucideIcons.radio, size: 16, color: Color(0xFF22C55E)),
+                        label: const Text('Gravar Chip NFC', style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700, color: Color(0xFF22C55E))),
+                      ),
+                    ),
+                  ],
+                ),
+              ] else if (qrCode != null) ...[
                 Row(
                   children: [
                     Expanded(
@@ -330,11 +371,21 @@ class _DesignPreviewScreenState extends ConsumerState<DesignPreviewScreen> {
                 ),
                 child: Column(
                   children: [
-                    _buildInfoRow('Link Permanente', qrCode?.publicUrl ?? '—'),
-                    const Divider(color: Color(0xFF282A26), height: 16),
-                    _buildInfoRow('Destino Atual', qrCode?.currentDestination ?? '—'),
-                    const Divider(color: Color(0xFF282A26), height: 16),
-                    _buildInfoRow('Dimensões Físicas', '${template?.physicalWidthCm ?? 10} x ${template?.physicalHeightCm ?? 10} cm'),
+                    if (template?.isCanva == true) ...[
+                      _buildInfoRow('Origem da Arte', 'Design do Canva', valueColor: const Color(0xFFA5ADEB)),
+                      const Divider(color: Color(0xFF282A26), height: 16),
+                      _buildInfoRow('Link da Arte (Canva)', template?.page1DynamicUrl ?? qrCode?.currentDestination ?? '—'),
+                      const Divider(color: Color(0xFF282A26), height: 16),
+                      _buildInfoRow('Dimensões Físicas', '${template?.physicalWidthCm ?? 10} x ${template?.physicalHeightCm ?? 10} cm'),
+                      const Divider(color: Color(0xFF282A26), height: 16),
+                      _buildInfoRow('Status do Chip NFC', 'Pronto para Gravação', valueColor: const Color(0xFF22C55E)),
+                    ] else ...[
+                      _buildInfoRow('Link Permanente', qrCode?.publicUrl ?? '—'),
+                      const Divider(color: Color(0xFF282A26), height: 16),
+                      _buildInfoRow('Destino Atual', qrCode?.currentDestination ?? '—'),
+                      const Divider(color: Color(0xFF282A26), height: 16),
+                      _buildInfoRow('Dimensões Físicas', '${template?.physicalWidthCm ?? 10} x ${template?.physicalHeightCm ?? 10} cm'),
+                    ],
                   ],
                 ),
               ),
@@ -345,7 +396,7 @@ class _DesignPreviewScreenState extends ConsumerState<DesignPreviewScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value, {Color? valueColor}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -356,7 +407,7 @@ class _DesignPreviewScreenState extends ConsumerState<DesignPreviewScreen> {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+            style: TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600, color: valueColor ?? Colors.white),
           ),
         ),
       ],

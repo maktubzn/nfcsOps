@@ -123,7 +123,13 @@ class _TemplateDetailScreenState extends ConsumerState<TemplateDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final templatesAsync = ref.watch(templatesStreamProvider);
+    final designsAsync = ref.watch(generatedDesignsStreamProvider);
+    final companiesAsync = ref.watch(companiesStreamProvider);
+
     final allTemplates = templatesAsync.value ?? [];
+    final allDesigns = designsAsync.value ?? [];
+    final allCompanies = companiesAsync.value ?? [];
+
     final template = allTemplates.where((t) => t.id == widget.templateId).firstOrNull;
 
     if (template == null) {
@@ -133,6 +139,12 @@ class _TemplateDetailScreenState extends ConsumerState<TemplateDetailScreen> {
         body: const Center(child: Text('Modelo não encontrado.', style: TextStyle(color: Colors.white70))),
       );
     }
+
+    final linkedDesign = allDesigns.where((d) => d.templateId == template.id).firstOrNull;
+    final isLinked = linkedDesign != null;
+    final linkedCompany = isLinked
+        ? allCompanies.where((c) => c.id == linkedDesign.companyId).firstOrNull
+        : null;
 
     final placement = template.qrPlacements.firstOrNull;
 
@@ -149,6 +161,12 @@ class _TemplateDetailScreenState extends ConsumerState<TemplateDetailScreen> {
           style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700, color: Colors.white, fontSize: 18),
         ),
         actions: [
+          if (isLinked)
+            IconButton(
+              icon: const Icon(LucideIcons.pencil, color: Colors.white),
+              tooltip: 'Editar vinculação da placa',
+              onPressed: () => context.push('/designs/generate?templateId=${template.id}&designId=${linkedDesign.id}'),
+            ),
           IconButton(
             icon: const Icon(Icons.delete_outline, color: Colors.white70),
             onPressed: () => _deleteTemplate(template),
@@ -389,27 +407,79 @@ class _TemplateDetailScreenState extends ConsumerState<TemplateDetailScreen> {
                 ),
               ],
 
+              if (isLinked) ...[
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF142416),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: const Color(0xFF22C55E).withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF22C55E),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.check, size: 14, color: Colors.black),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Placa Vinculada',
+                              style: TextStyle(fontFamily: 'Inter', fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF22C55E)),
+                            ),
+                            Text(
+                              linkedCompany?.tradeName ?? 'Empresa Cadastrada',
+                              style: const TextStyle(fontFamily: 'Inter', fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(LucideIcons.pencil, color: Colors.white70, size: 18),
+                        tooltip: 'Editar Vinculação',
+                        onPressed: () => context.push('/designs/generate?templateId=${template.id}&designId=${linkedDesign.id}'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
               const SizedBox(height: 14),
 
-              // Botão Criar Placa para Empresa
+              // Botão de Ação Principal
               Material(
                 color: AppColors.orangeAction,
                 borderRadius: BorderRadius.circular(26),
                 child: InkWell(
-                  onTap: () => context.push('/designs/generate?templateId=${template.id}'),
+                  onTap: () {
+                    if (isLinked) {
+                      context.push('/designs/${linkedDesign.id}/preview');
+                    } else {
+                      context.push('/designs/generate?templateId=${template.id}');
+                    }
+                  },
                   borderRadius: BorderRadius.circular(26),
                   child: Container(
                     height: 52,
                     width: double.infinity,
                     alignment: Alignment.center,
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(LucideIcons.printer, color: Colors.white, size: 20),
-                        SizedBox(width: 8),
+                        Icon(isLinked ? LucideIcons.layoutDashboard : LucideIcons.printer, color: Colors.white, size: 20),
+                        const SizedBox(width: 8),
                         Text(
-                          'Vincular e Gerar Placa para Empresa',
-                          style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
+                          isLinked ? 'Ver Placa da Empresa' : 'Vincular e Gerar Placa para Empresa',
+                          style: const TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white),
                         ),
                       ],
                     ),

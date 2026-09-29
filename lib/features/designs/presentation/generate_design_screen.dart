@@ -18,11 +18,13 @@ import 'widgets/nfc_write_modal.dart';
 class GenerateDesignScreen extends ConsumerStatefulWidget {
   final String? initialCompanyId;
   final String? initialTemplateId;
+  final String? designId;
 
   const GenerateDesignScreen({
     super.key,
     this.initialCompanyId,
     this.initialTemplateId,
+    this.designId,
   });
 
   @override
@@ -41,6 +43,9 @@ class _GenerateDesignScreenState extends ConsumerState<GenerateDesignScreen> {
   final TextEditingController _destinationCtrl = TextEditingController();
   bool _isSaving = false;
   bool _initializedFromTemplate = false;
+  bool _initializedEditData = false;
+
+  bool get _isEditMode => widget.designId != null;
 
   @override
   void initState() {
@@ -55,8 +60,29 @@ class _GenerateDesignScreenState extends ConsumerState<GenerateDesignScreen> {
     super.dispose();
   }
 
+  void _syncEditData(List<GeneratedDesign> designs, List<DynamicQrCode> qrCodes, List<PlateTemplate> templates) {
+    if (_initializedEditData || widget.designId == null) return;
+    final dsg = designs.where((d) => d.id == widget.designId).firstOrNull;
+    if (dsg != null) {
+      _initializedEditData = true;
+      _selectedCompanyId = dsg.companyId;
+      _selectedTemplateId = dsg.templateId;
+      _selectedServiceId = dsg.serviceId;
+      _selectedDeviceId = dsg.deviceId;
+      final qr = qrCodes.where((q) => q.id == dsg.qrCodeId).firstOrNull;
+      if (qr != null && qr.currentDestination.isNotEmpty) {
+        _destinationCtrl.text = qr.currentDestination;
+      } else {
+        final tmpl = templates.where((t) => t.id == dsg.templateId).firstOrNull;
+        if (tmpl?.page1DynamicUrl != null && tmpl!.page1DynamicUrl!.isNotEmpty) {
+          _destinationCtrl.text = tmpl.page1DynamicUrl!;
+        }
+      }
+    }
+  }
+
   void _syncTemplateData(PlateTemplate template) {
-    if (_initializedFromTemplate) return;
+    if (_initializedFromTemplate || _isEditMode) return;
     _initializedFromTemplate = true;
     final url = template.page1DynamicUrl;
     if (_destinationCtrl.text.isEmpty && url != null && url.isNotEmpty) {
@@ -113,6 +139,96 @@ class _GenerateDesignScreenState extends ConsumerState<GenerateDesignScreen> {
       final curUser = ref.read(currentUserProvider);
 
       final now = DateTime.now();
+
+      // MODO EDIÇÃO: Atualizar placa existente sem duplicar
+      if (_isEditMode) {
+        final allDesigns = await designRepo.getDesigns();
+        final existingDesign = allDesigns.where((d) => d.id == widget.designId).firstOrNull;
+        if (existingDesign != null) {
+          // 1. Atualizar Serviço vinculado
+          if (_selectedServiceId != null) {
+            final allServices = await serviceRepo.getAllServices();
+            final existingSrv = allServices.where((s) => s.id == _selectedServiceId).firstOrNull;
+            if (existingSrv != null) {
+              await serviceRepo.updateService(existingSrv.copyWith(
+                companyId: _selectedCompanyId!,
+                destinationUrl: dest,
+                updatedAt: now,
+              ));
+            }
+          }
+
+          // 2. Atualizar QR Code vinculado se houver
+          if (existingDesign.qrCodeId.isNotEmpty) {
+            try {
+              await qrRepo.updateDestination(
+                existingDesign.qrCodeId,
+                dest,
+                changedByUid: curUser?.uid ?? 'usr-operador',
+                changedByName: curUser?.displayName ?? 'Operador',
+              );
+            } catch (_) {}
+          }
+
+          // 3. Atualizar Dispositivo Físico se alterado
+          if (existingDesign.deviceId != _selectedDeviceId) {
+            final allDevs = await deviceRepo.getDevices();
+            if (existingDesign.deviceId != null) {
+              final oldDev = allDevs.where((d) => d.id == existingDesign.deviceId).firstOrNull;
+              if (oldDev != null) {
+                await deviceRepo.updateDevice(oldDev.copyWith(
+                  status: DeviceStatus.disponivel,
+                  clearAssignedCompany: true,
+                  clearPrimaryService: true,
+                  updatedAt: now,
+                ));
+              }
+            }
+            if (_selectedDeviceId != null) {
+              final newDev = allDevs.where((d) => d.id == _selectedDeviceId).firstOrNull;
+              if (newDev != null) {
+                await deviceRepo.updateDevice(newDev.copyWith(
+                  status: DeviceStatus.instalado,
+                  assignedCompanyId: _selectedCompanyId,
+                  primaryServiceId: _selectedServiceId,
+                  updatedAt: now,
+                ));
+              }
+            }
+          }
+
+          // 4. Atualizar Design
+          final updatedDesign = existingDesign.copyWith(
+            companyId: _selectedCompanyId!,
+            serviceId: _selectedServiceId,
+            deviceId: _selectedDeviceId,
+            clearDeviceId: _selectedDeviceId == null,
+            updatedAt: now,
+          );
+          await designRepo.updateDesign(updatedDesign);
+
+          // 5. Auditoria
+          await actRepo.logActivity(ActivityEntry(
+            id: 'act_${now.millisecondsSinceEpoch}',
+            actorUid: curUser?.uid ?? 'usr-operador',
+            actorName: curUser?.displayName ?? 'Operador',
+            actionType: 'update_plate_design',
+            description: 'Placa atualizada para ${company?.tradeName ?? 'Empresa'}.',
+            entityType: 'design',
+            entityId: updatedDesign.id,
+            timestamp: now,
+          ));
+
+          if (!mounted) return;
+          setState(() => _isSaving = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Placa atualizada com sucesso!'), backgroundColor: AppColors.greenSuccess),
+          );
+          context.pushReplacement('/designs/${updatedDesign.id}/preview');
+          return;
+        }
+      }
+
       final shortCode = _generateShortCode();
 
       // 1. Garantir ou vincular serviço da empresa
@@ -339,16 +455,24 @@ class _GenerateDesignScreenState extends ConsumerState<GenerateDesignScreen> {
     final servicesAsync = ref.watch(servicesStreamProvider);
     final templatesAsync = ref.watch(templatesStreamProvider);
     final devicesAsync = ref.watch(devicesStreamProvider);
+    final designsAsync = ref.watch(generatedDesignsStreamProvider);
+    final qrCodesAsync = ref.watch(qrCodesStreamProvider);
 
     final companies = companiesAsync.value ?? [];
     final allServices = servicesAsync.value ?? [];
     final templates = templatesAsync.value ?? [];
     final allDevices = devicesAsync.value ?? [];
+    final allDesigns = designsAsync.value ?? [];
+    final allQrCodes = qrCodesAsync.value ?? [];
+
+    if (_isEditMode && !_initializedEditData) {
+      _syncEditData(allDesigns, allQrCodes, templates);
+    }
 
     final template = templates.where((t) => t.id == _selectedTemplateId).firstOrNull;
     final company = companies.where((c) => c.id == _selectedCompanyId).firstOrNull;
     final companyServices = allServices.where((s) => s.companyId == _selectedCompanyId).toList();
-    final availableDevices = allDevices.where((d) => d.status == DeviceStatus.disponivel).toList();
+    final availableDevices = allDevices.where((d) => d.status == DeviceStatus.disponivel || d.id == _selectedDeviceId).toList();
 
     if (template != null) {
       _syncTemplateData(template);
@@ -368,9 +492,9 @@ class _GenerateDesignScreenState extends ConsumerState<GenerateDesignScreen> {
             }
           },
         ),
-        title: const Text(
-          'Vincular Placa para Empresa',
-          style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700, color: Colors.white, fontSize: 18),
+        title: Text(
+          _isEditMode ? 'Editar Placa da Empresa' : 'Vincular Placa para Empresa',
+          style: const TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w700, color: Colors.white, fontSize: 18),
         ),
       ),
       body: SafeArea(
@@ -958,7 +1082,7 @@ class _GenerateDesignScreenState extends ConsumerState<GenerateDesignScreen> {
                   child: _isSaving
                       ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : Text(
-                          _currentStep < 3 ? 'Avançar' : 'Salvar e Vincular Placa',
+                          _currentStep < 3 ? 'Avançar' : (_isEditMode ? 'Salvar Alterações' : 'Salvar e Vincular Placa'),
                           style: const TextStyle(fontFamily: 'Inter', fontSize: 15, fontWeight: FontWeight.w700, color: Colors.white),
                         ),
                 ),

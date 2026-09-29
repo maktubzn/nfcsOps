@@ -190,10 +190,18 @@ GoRouter createAppRouter({
         builder: (context, state) => GenerateDesignScreen(
           initialCompanyId: state.uri.queryParameters['companyId'],
           initialTemplateId: state.uri.queryParameters['templateId'],
+          designId: state.uri.queryParameters['designId'],
         ),
       ),
       GoRoute(
         path: '/designs/:id/preview',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (context, state) => DesignPreviewScreen(
+          designId: state.pathParameters['id'] ?? '',
+        ),
+      ),
+      GoRoute(
+        path: '/designs/:id',
         parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => DesignPreviewScreen(
           designId: state.pathParameters['id'] ?? '',
