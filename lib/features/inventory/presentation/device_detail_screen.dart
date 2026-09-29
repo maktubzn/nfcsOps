@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -814,10 +815,14 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
     final devicesAsync = ref.watch(devicesStreamProvider);
     final companiesAsync = ref.watch(companiesStreamProvider);
     final servicesAsync = ref.watch(servicesStreamProvider);
+    final designsAsync = ref.watch(generatedDesignsStreamProvider);
+    final templatesAsync = ref.watch(templatesStreamProvider);
 
     final allDevices = devicesAsync.value ?? [];
     final allCompanies = companiesAsync.value ?? [];
     final allServices = servicesAsync.value ?? [];
+    final allDesigns = designsAsync.value ?? [];
+    final allTemplates = templatesAsync.value ?? [];
 
     final device = allDevices.where((d) => d.id == widget.deviceId).firstOrNull;
 
@@ -844,8 +849,19 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
     final company = allCompanies.where((c) => c.id == device.assignedCompanyId).firstOrNull;
     final companyName = company?.tradeName ?? (device.assignedCompanyId != null && device.assignedCompanyId!.isNotEmpty ? device.assignedCompanyId! : 'Não associado');
 
+    final linkedDesign = allDesigns.where((d) =>
+        d.deviceId == device.id ||
+        (device.assignedCompanyId != null && d.companyId == device.assignedCompanyId && d.serviceId == device.primaryServiceId)).firstOrNull;
+
+    final linkedTemplate = linkedDesign != null
+        ? allTemplates.where((t) => t.id == linkedDesign.templateId).firstOrNull
+        : null;
+
     final service = allServices.where((s) => s.id == device.primaryServiceId).firstOrNull;
-    final serviceTitle = service?.publicTitle ?? (device.primaryServiceId != null && device.primaryServiceId!.isNotEmpty ? device.primaryServiceId! : 'Sem serviço');
+    final serviceTitle = service?.publicTitle ??
+        (device.primaryServiceId != null && !device.primaryServiceId!.startsWith('srv-')
+            ? device.primaryServiceId!
+            : 'Placa Personalizada');
 
     final displayCode = device.batchId.isNotEmpty ? device.batchId : device.id;
     final typeLabel = device.deviceType == 'display_acrilico'
@@ -1011,6 +1027,112 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
                       ),
                     ),
 
+                    // Card da Placa / Modelo Canva Vinculado
+                    if (linkedTemplate != null || linkedDesign != null) ...[
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1C1D1B),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: const Color(0xFF282A26)),
+                        ),
+                        child: Row(
+                          children: [
+                            // Miniatura da arte da placa
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                width: 56,
+                                height: 56,
+                                color: const Color(0xFF2A2B28),
+                                child: _buildPlateThumbnail(linkedTemplate?.baseImageUrl ?? ''),
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          linkedTemplate?.name ?? 'Placa da Empresa',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                      if (linkedTemplate?.isCanva == true) ...[
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFFA5ADEB).withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Text(
+                                            'CANVA',
+                                            style: TextStyle(
+                                              fontFamily: 'Inter',
+                                              fontSize: 9,
+                                              fontWeight: FontWeight.w800,
+                                              color: Color(0xFFA5ADEB),
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${linkedTemplate?.physicalWidthCm.toInt() ?? 10}x${linkedTemplate?.physicalHeightCm.toInt() ?? 10} cm • ${linkedTemplate?.productType == 'placa_acrilica' ? 'Placa acrílica' : 'Cartão PVC'}',
+                                    style: const TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 12,
+                                      color: Color(0xFF9E9E9E),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (linkedDesign != null)
+                              TextButton(
+                                onPressed: () => context.push('/designs/${linkedDesign.id}'),
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                  backgroundColor: const Color(0xFF282A26),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Ver Arte',
+                                      style: TextStyle(
+                                        fontFamily: 'Inter',
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
+                                        color: Color(0xFFECEBDE),
+                                      ),
+                                    ),
+                                    SizedBox(width: 4),
+                                    Icon(Icons.arrow_forward_ios, size: 10, color: Color(0xFFECEBDE)),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     const SizedBox(height: 14),
 
                     // Status de Teste Físico
@@ -1088,21 +1210,26 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
                                 children: [
                                   Row(
                                     children: [
-                                      const Text(
-                                        'NFC Físico Gravado no Mobile',
-                                        style: TextStyle(
-                                          fontFamily: 'Inter',
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          color: Color(0xFF22C55E),
+                                      const Flexible(
+                                        child: Text(
+                                          'NFC Físico Gravado no Mobile',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            fontFamily: 'Inter',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF22C55E),
+                                          ),
                                         ),
                                       ),
-                                      const SizedBox(width: 6),
-                                      if (device.isNfcLocked)
+                                      if (device.isNfcLocked) ...[
+                                        const SizedBox(width: 6),
                                         const Tooltip(
                                           message: 'Chip protegido contra regravação',
                                           child: Icon(Icons.lock, size: 14, color: Color(0xFF22C55E)),
                                         ),
+                                      ],
                                     ],
                                   ),
                                   const SizedBox(height: 4),
@@ -1209,86 +1336,176 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
                       ),
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
 
-                    // Botão Laranja: "Executar checklist" (Abre A04)
-                    Material(
-                      color: AppColors.orangeAction,
-                      borderRadius: BorderRadius.circular(26),
-                      child: InkWell(
-                        onTap: () => context.push('/devices/${device.id}/checklist'),
+                    // Ciclo de Ações Operacionais Progressivo (Disponível -> Em Produção -> Instalado)
+                    if (device.status == DeviceStatus.disponivel) ...[
+                      // Botão Primário: "Marcar em produção"
+                      Material(
+                        color: AppColors.orangeAction,
                         borderRadius: BorderRadius.circular(26),
-                        child: Container(
-                          height: 52,
-                          width: double.infinity,
-                          alignment: Alignment.center,
-                          child: const Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(LucideIcons.checkSquare, color: Colors.white, size: 20),
-                              SizedBox(width: 8),
-                              Text(
-                                'Executar checklist',
-                                style: TextStyle(
-                                  fontFamily: 'Inter',
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                  letterSpacing: -0.2,
-                                ),
-                              ),
-                            ],
+                        child: InkWell(
+                          onTap: _isUpdating
+                              ? null
+                              : () => _handleUpdateStatus(
+                                    device.id,
+                                    DeviceStatus.emProducao,
+                                    'Dispositivo marcado em produção com sucesso!',
+                                  ),
+                          borderRadius: BorderRadius.circular(26),
+                          child: Container(
+                            height: 52,
+                            width: double.infinity,
+                            alignment: Alignment.center,
+                            child: _isUpdating
+                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(LucideIcons.playCircle, color: Colors.white, size: 20),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Marcar em produção',
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                           ),
                         ),
                       ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // Botão Secundário: "Marcar em produção"
-                    Material(
-                      color: const Color(0xFF1E201D),
-                      borderRadius: BorderRadius.circular(26),
-                      child: InkWell(
-                        onTap: _isUpdating
-                            ? null
-                            : () => _handleUpdateStatus(
-                                  device.id,
-                                  DeviceStatus.emProducao,
-                                  'Dispositivo marcado em produção com sucesso!',
-                                ),
+                    ] else if (device.status == DeviceStatus.emProducao) ...[
+                      // Botão Laranja: "Executar checklist"
+                      Material(
+                        color: AppColors.orangeAction,
                         borderRadius: BorderRadius.circular(26),
-                        child: Container(
-                          height: 50,
-                          width: double.infinity,
-                          alignment: Alignment.center,
-                          child: _isUpdating
-                              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                              : const Text(
-                                  'Marcar em produção',
+                        child: InkWell(
+                          onTap: () => context.push('/devices/${device.id}/checklist'),
+                          borderRadius: BorderRadius.circular(26),
+                          child: Container(
+                            height: 52,
+                            width: double.infinity,
+                            alignment: Alignment.center,
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(LucideIcons.checkSquare, color: Colors.white, size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Executar checklist',
                                   style: TextStyle(
                                     fontFamily: 'Inter',
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w600,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
                                     color: Colors.white,
+                                    letterSpacing: -0.2,
                                   ),
                                 ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 10),
+                      // Botão Secundário de Conclusão: "Marcar como instalado"
+                      Material(
+                        color: const Color(0xFF1E201D),
+                        borderRadius: BorderRadius.circular(26),
+                        child: InkWell(
+                          onTap: _isUpdating
+                              ? null
+                              : () => _handleUpdateStatus(
+                                    device.id,
+                                    DeviceStatus.instalado,
+                                    'Dispositivo marcado como INSTALADO no cliente!',
+                                  ),
+                          borderRadius: BorderRadius.circular(26),
+                          child: Container(
+                            height: 50,
+                            width: double.infinity,
+                            alignment: Alignment.center,
+                            child: _isUpdating
+                                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                                : const Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(LucideIcons.mapPin, color: Color(0xFF22C55E), size: 18),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Marcar como instalado',
+                                        style: TextStyle(
+                                          fontFamily: 'Inter',
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ] else if (device.status == DeviceStatus.instalado) ...[
+                      // Banner de Confirmação: "Dispositivo Instalado no Cliente"
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF132216),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFF22C55E).withValues(alpha: 0.5),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.verified, color: Color(0xFF22C55E), size: 24),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Dispositivo Instalado no Cliente',
+                                    style: TextStyle(
+                                      fontFamily: 'Inter',
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF22C55E),
+                                    ),
+                                  ),
+                                  SizedBox(height: 2),
+                                  Text(
+                                    'Placa e chip NFC em operação ativa no cliente.',
+                                    style: TextStyle(fontFamily: 'Inter', fontSize: 11, color: Color(0xFFCCCCCC)),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Color(0xFF333532)),
+                          minimumSize: const Size(double.infinity, 46),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                        onPressed: () => context.push('/devices/${device.id}/checklist'),
+                        icon: const Icon(LucideIcons.clipboardCheck, size: 16, color: Color(0xFF9E9E9E)),
+                        label: const Text('Revisar Checklist Operacional', style: TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600)),
+                      ),
+                    ],
 
                     const SizedBox(height: 16),
 
-                    // Linhas de Ações Rápidas
-                    InkWell(
-                      onTap: () => _handleUpdateStatus(device.id, DeviceStatus.instalado, 'Dispositivo marcado como INSTALADO!'),
-                      borderRadius: BorderRadius.circular(16),
-                      child: _buildRow(
-                        label: device.status == DeviceStatus.instalado ? 'Dispositivo Instalado' : 'Marcar como instalado',
-                        icon: LucideIcons.mapPin,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
+                    // Linhas de Ações de Exceção
                     InkWell(
                       onTap: () => _showReplaceModal(context, device, allDevices),
                       borderRadius: BorderRadius.circular(16),
@@ -1314,6 +1531,24 @@ class _DeviceDetailScreenState extends ConsumerState<DeviceDetailScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildPlateThumbnail(String url) {
+    if (url.startsWith('http')) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const Icon(LucideIcons.image, color: Colors.white38, size: 24),
+      );
+    }
+    if (!kIsWeb && url.isNotEmpty && File(url).existsSync()) {
+      return Image.file(
+        File(url),
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => const Icon(LucideIcons.image, color: Colors.white38, size: 24),
+      );
+    }
+    return const Icon(LucideIcons.image, color: Colors.white38, size: 24);
   }
 
   Widget _buildMetaCol(String label, String value) {

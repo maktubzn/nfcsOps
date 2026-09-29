@@ -99,11 +99,13 @@ class _DesignPreviewScreenState extends ConsumerState<DesignPreviewScreen> {
     final templatesAsync = ref.watch(templatesStreamProvider);
     final qrCodesAsync = ref.watch(qrCodesStreamProvider);
     final companiesAsync = ref.watch(companiesStreamProvider);
+    final devicesAsync = ref.watch(devicesStreamProvider);
 
     final allDesigns = designsAsync.value ?? [];
     final allTemplates = templatesAsync.value ?? [];
     final allQrCodes = qrCodesAsync.value ?? [];
     final allCompanies = companiesAsync.value ?? [];
+    final allDevices = devicesAsync.value ?? [];
 
     final design = allDesigns.where((d) => d.id == widget.designId).firstOrNull;
 
@@ -118,6 +120,10 @@ class _DesignPreviewScreenState extends ConsumerState<DesignPreviewScreen> {
     final template = allTemplates.where((t) => t.id == design.templateId).firstOrNull;
     final qrCode = allQrCodes.where((q) => q.id == design.qrCodeId).firstOrNull;
     final company = allCompanies.where((c) => c.id == design.companyId).firstOrNull;
+
+    final linkedDevice = allDevices.where((d) =>
+        (design.deviceId != null && d.id == design.deviceId) ||
+        (design.companyId.isNotEmpty && d.assignedCompanyId == design.companyId && design.serviceId != null && d.primaryServiceId == design.serviceId)).firstOrNull;
 
     final shortCode = qrCode?.shortCode ?? 'NFC-QR';
     final placement = template?.qrPlacements.firstOrNull;
@@ -378,13 +384,41 @@ class _DesignPreviewScreenState extends ConsumerState<DesignPreviewScreen> {
                       const Divider(color: Color(0xFF282A26), height: 16),
                       _buildInfoRow('Dimensões Físicas', '${template?.physicalWidthCm ?? 10} x ${template?.physicalHeightCm ?? 10} cm'),
                       const Divider(color: Color(0xFF282A26), height: 16),
-                      _buildInfoRow('Status do Chip NFC', 'Pronto para Gravação', valueColor: const Color(0xFF22C55E)),
+                      _buildInfoRow(
+                        'Status do Chip NFC',
+                        linkedDevice != null
+                            ? (linkedDevice.checklist.nfcChipWriting ? 'Gravado no Mobile' : 'Aguardando Gravação')
+                            : 'Pronto para Gravação',
+                        valueColor: const Color(0xFF22C55E),
+                      ),
+                      if (linkedDevice != null) ...[
+                        const Divider(color: Color(0xFF282A26), height: 16),
+                        _buildInfoRow(
+                          'Chip Físico (Estoque)',
+                          linkedDevice.batchId.isNotEmpty ? linkedDevice.batchId : linkedDevice.id,
+                          valueColor: const Color(0xFFFACC15),
+                          onTap: () => context.push('/inventory/${linkedDevice.id}'),
+                        ),
+                        if (linkedDevice.nfcUid != null) ...[
+                          const Divider(color: Color(0xFF282A26), height: 16),
+                          _buildInfoRow('UID do Chip', linkedDevice.nfcUid!),
+                        ],
+                      ],
                     ] else ...[
                       _buildInfoRow('Link Permanente', qrCode?.publicUrl ?? '—'),
                       const Divider(color: Color(0xFF282A26), height: 16),
                       _buildInfoRow('Destino Atual', qrCode?.currentDestination ?? '—'),
                       const Divider(color: Color(0xFF282A26), height: 16),
                       _buildInfoRow('Dimensões Físicas', '${template?.physicalWidthCm ?? 10} x ${template?.physicalHeightCm ?? 10} cm'),
+                      if (linkedDevice != null) ...[
+                        const Divider(color: Color(0xFF282A26), height: 16),
+                        _buildInfoRow(
+                          'Chip Físico (Estoque)',
+                          linkedDevice.batchId.isNotEmpty ? linkedDevice.batchId : linkedDevice.id,
+                          valueColor: const Color(0xFFFACC15),
+                          onTap: () => context.push('/inventory/${linkedDevice.id}'),
+                        ),
+                      ],
                     ],
                   ],
                 ),
@@ -396,19 +430,38 @@ class _DesignPreviewScreenState extends ConsumerState<DesignPreviewScreen> {
     );
   }
 
-  Widget _buildInfoRow(String label, String value, {Color? valueColor}) {
+  Widget _buildInfoRow(String label, String value, {Color? valueColor, VoidCallback? onTap}) {
+    final valueWidget = Text(
+      value,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        fontFamily: 'Inter',
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: valueColor ?? Colors.white,
+      ),
+    );
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: const TextStyle(fontFamily: 'Inter', fontSize: 13, color: Color(0xFF9E9E9E))),
         const SizedBox(width: 12),
         Flexible(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontFamily: 'Inter', fontSize: 13, fontWeight: FontWeight.w600, color: valueColor ?? Colors.white),
-          ),
+          child: onTap != null
+              ? InkWell(
+                  onTap: onTap,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(child: valueWidget),
+                      const SizedBox(width: 4),
+                      Icon(Icons.arrow_forward_ios, size: 10, color: valueColor ?? Colors.white),
+                    ],
+                  ),
+                )
+              : valueWidget,
         ),
       ],
     );
